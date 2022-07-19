@@ -1,0 +1,13 @@
+[REPORTS]
+
+output-format=colorized
+msg-template='{abspath}:{line:5d},{column:2d}: {msg} ({symbol})'
+disable=missing-module-docstring,missing-class-docstring,missing-function-docstring,logging-fstring-interpolation
+
+[FORMAT]
+
+max-line-length=119
+
+[DESIGN]
+
+max-args=10

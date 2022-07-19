@@ -1,0 +1,9 @@
+version: "3.9"
+services:
+  tournament-bot:
+    build: .
+    image: gumo:latest
+    container_name: gumo
+    environment:
+      GUMO_BOT_TOKEN: "BOT_TOKEN_HERE"
+      # GUMO_LOG_LEVEL: "INFO"
