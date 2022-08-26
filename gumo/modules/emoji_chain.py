@@ -100,7 +100,7 @@ class EmojiChain(commands.Cog):
             if reaction.emoji == emoji and reaction.count >= self._threshold:
 
                 # Ignore if the bot has already reacted to the chain before
-                if self.bot.user in await reaction.users().flatten():
+                if self.bot.user in await  [user async for user in reaction.users()]:
                     continue
 
                 await asyncio.sleep(self._timeout)
@@ -111,5 +111,5 @@ class EmojiChain(commands.Cog):
                 self._timeout = random.randint(0, 20)
 
 
-def setup(bot):
-    bot.add_cog(EmojiChain(bot))
+async def setup(bot):
+    await bot.add_cog(EmojiChain(bot))

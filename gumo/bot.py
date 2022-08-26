@@ -17,12 +17,12 @@ class Bot(commands.Bot):
     def __init__(self, *args, **kwargs):
 
         intents = discord.Intents.default()
+        intents.message_content = True  # pylint: disable=assigning-non-slot
         intents.members = True  # pylint: disable=assigning-non-slot
         super().__init__(*args, **kwargs, intents=intents)
 
         self.remove_command('help')
-        self.load_modules()
 
-    def load_modules(self):
+    async def setup_hook(self):
         for module in MODULES:
-            self.load_extension(module)
+            await self.load_extension(module)

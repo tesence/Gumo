@@ -1,5 +1,5 @@
 from gumo.modules.seed.core import BFRandomizer
 
 
-def setup(bot):
-    bot.add_cog(BFRandomizer(bot))
+async def setup(bot):
+    await bot.add_cog(BFRandomizer(bot))

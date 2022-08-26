@@ -128,5 +128,5 @@ class RoleCommands(commands.Cog):
             await ctx.send(message[0], view=message[1])
 
 
-def setup(bot):
-    bot.add_cog(RoleCommands(bot))
+async def setup(bot):
+    await bot.add_cog(RoleCommands(bot))
