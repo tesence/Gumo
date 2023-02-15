@@ -10,7 +10,6 @@ from discord.ext import commands
 logger = logging.getLogger(__name__)
 
 CUSTOM_EMOJI_RE = re.compile(r'<?(?P<animated>a)?:?(?P<name>[A-Za-z0-9\_]+):(?P<id>[0-9]{13,20})>?')
-GUILD_ID = 116250700685508615
 
 
 class EmojiChain(commands.Cog):
@@ -32,7 +31,6 @@ class EmojiChain(commands.Cog):
         # - The bot does not have write permission in the channel
         if not isinstance(ctx.channel, discord.TextChannel) or \
            ctx.author.bot or \
-           message.guild.id != GUILD_ID or \
            not ctx.channel.permissions_for(ctx.me).send_messages:
             return
 
@@ -40,31 +38,34 @@ class EmojiChain(commands.Cog):
             emoji = self.bot.get_emoji(int(match.group('id')))
             # Ignore if:
             # - The emoji is not found (the bot is not in the guild where the emoji is from)
-            # - The emoji is not from the guild
-            if not emoji or emoji.guild_id != GUILD_ID:
+            if not emoji:
                 return
         else:
             return
 
-        messages = await ctx.history(limit=self._threshold).flatten()
+        messages = [message async for message in ctx.history(limit=self._threshold)]
 
         # ignore if the chat history is too short to be a chain
         if not len(messages) >= self._threshold:
             return
 
-        user_messages = [message for message in messages if not message.author.bot]
-        authors = [message.author.id for message in user_messages]
+        authors = [message.author.id for message in messages]
+
+        # If one the message has been sent by the bot
+        if self.bot.user.id in authors:
+            return
+
         # Send message if:
         # - All X previous messages are the same emoji
         # - All X previous have not been modified
         # - All authors are different
-        if all(message.content == str(emoji) for message in user_messages) and \
-           all(not message.edited_at for message in user_messages) and \
+        if all(message.content == str(emoji) for message in messages) and \
+           all(not message.edited_at for message in messages) and \
            len(authors) == len(set(authors)):
             await asyncio.sleep(self._timeout)
             await ctx.send(emoji)
             logger.debug(f"Contributed to an emoji chain of {self._threshold} {emoji.name} initiated by "
-                         f"'{user_messages[0].author.display_name}' in channel '#{ctx.channel}'")
+                         f"'{messages[0].author.display_name}' in channel '#{ctx.channel}'")
             self._threshold = random.randint(3, 7)
             self._timeout = random.randint(0, 20)
 
@@ -79,18 +80,14 @@ class EmojiChain(commands.Cog):
         # Ignore if:
         # - The listener is triggered by one of the bot's reactions
         # - The bot does not have reaction permission in the channel
-        # - The message has been sent in another guild
-        if user == self.bot.user or \
-           not channel.permissions_for(ctx.me).add_reactions or \
-           not message.guild.id == GUILD_ID:
+        if user == self.bot.user or not channel.permissions_for(ctx.me).add_reactions:
             return
 
         emoji = self.bot.get_emoji(payload.emoji.id)
 
         # Ignore if:
         # - The emoji is not found (the bot is not in the guild where the emoji is from)
-        # - The emoji is not from the guild
-        if not emoji or emoji.guild_id != GUILD_ID:
+        if not emoji:
             return
 
         # Iterate through all reactions to find the one related to that emoji
