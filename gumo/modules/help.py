@@ -1,17 +1,17 @@
+import inspect
 import collections
 
 from discord.ext import commands
-from discord.ext.commands import converter
-
-EXCLUDED_COMMANDS = ['help']
 
 
-async def _can_run(ctx, cmd):
-    try:
-        return await cmd.can_run(ctx)
-    except commands.CommandError:
-        return False
+class CommandConverter(commands.Converter):
+    async def convert(self, ctx, argument):
+        command = ctx.bot.get_command(argument)
 
+        if command is None or not command.enabled:
+            raise commands.BadArgument(f'Command "{argument}" not found.')
+
+        return command
 
 class Help(commands.Cog):
 
@@ -19,68 +19,69 @@ class Help(commands.Cog):
         self.bot = bot
 
     @commands.command()
-    async def help(self, ctx, *, command_name=None):
-
-        if not command_name:
-            output = await self._help_global(ctx)
+    async def help(self, ctx, command: CommandConverter = None):
+        if command is None:
+            await self._general_help(ctx)
         else:
-            cmd = self.bot.get_command(command_name)
-            if not cmd or cmd.name in EXCLUDED_COMMANDS or cmd.hidden or not await _can_run(ctx, cmd):
+            await self._command_help(ctx, command)
+
+    async def _general_help(self, ctx):
+
+        categories = collections.defaultdict(list)
+
+        for command in self.bot.walk_commands():
+
+            if not command.enabled or any(x.hidden for x in (command, *command.parents)):
+                continue
+
+            try:
+                if not await command.can_run(ctx):
+                    continue
+            except commands.CommandError:
+                continue
+
+            categories[command.cog_name].append(command)
+
+        def fmt_commands(name):
+            return ', '.join(f'`{x.qualified_name}`' for x in sorted(categories[name], key=lambda x: x.qualified_name))
+
+        usable = '\n'.join(f'**{name}:** {fmt_commands(name)}' for name in sorted(categories))
+
+        msg = inspect.cleandoc(
+            """
+            Your current permissions allow you to use the following commands:
+
+            {commands}
+
+            Use `{prefix}help <command>` for more information on each command.
+            """
+        )
+        await ctx.send(msg.format(commands=usable, prefix=ctx.prefix))
+
+    async def _command_help(self, ctx, command):
+
+        name = f'{command.full_parent_name} {command.name}'.lstrip()
+        signature = f' {command.signature}' if command.signature else ''
+
+        try:
+            if not await command.can_run(ctx):
                 return
-            if isinstance(cmd, commands.GroupMixin):
-                output = await self._help_group(ctx, cmd)
-            else:
-                output = await self._help_command(ctx, cmd)
+        except commands.CommandError:
+            return
 
-        if output:
-            await ctx.send(output)
+        description = command.help + '\n' if command.help else ''
 
-    async def _help_global(self, ctx):
-        filtered_commands = [cmd for cmd in self.bot.commands
-                             if cmd.name not in EXCLUDED_COMMANDS
-                             and not cmd.hidden
-                             and await _can_run(ctx, cmd)]
+        msg = inspect.cleandoc(
+            """
+            Usage: `{prefix}{name}{signature}`
 
-        command_tree = collections.defaultdict(list)
+            {description}
+            """
+        )
 
-        for cmd in filtered_commands:
-            command_tree[cmd.cog_name].append(cmd)
-
-        output = "Your current permissions allow you to use the following commands:\n\n"
-        for cog_name in sorted(command_tree):
-            cmds = command_tree[cog_name]
-            formatted_cmds = [f"`{cmd.name}`" for cmd in sorted(cmds, key=lambda cmd: cmd.name)]
-            output += f"**{cog_name}**: "
-            output += ", ".join(formatted_cmds) + "\n"
-
-        output += f"\nUse `{ctx.prefix}help <command>` for more information on each command."
-
-        return output
-
-    async def _help_group(self, ctx, cmd):
-        output = getattr(cmd, 'help', "") + "\n\n"
-        if getattr(cmd, 'invoke_without_command', False):
-            usage = cmd.usage or f"{cmd.name} {cmd.signature}"
-            output += f"**Usage:** `{ctx.prefix}{usage}`\n\n"
-        output = await converter.clean_content().convert(ctx, output)
-
-        formatted_cmds = [f"‣ `{cmd.name}`" for cmd in sorted(cmd.commands, key=lambda cmd: cmd.name)]
-        output += f"**Commands** (_type `{ctx.prefix}{cmd.name} <command>` with `<command>` " \
-                  f"a command from the list_):\n"
-        for formatted_cmd in formatted_cmds:
-            output += formatted_cmd + "\n"
-
-        return output
-
-    async def _help_command(self, ctx, cmd):
-        help = getattr(cmd, 'help', "")
-        output = help + "\n\n" if help else ""
-        command_name = cmd.name if not cmd.full_parent_name else f"{cmd.full_parent_name} {cmd.name}"
-        usage = cmd.usage or cmd.signature
-        output += f"**Usage:** `{ctx.prefix}{command_name} {usage}`"
-        output = await converter.clean_content().convert(ctx, output)
-        return output
-
+        await ctx.send(
+            msg.format(prefix=ctx.prefix, name=name, signature=signature, description=description)
+        )
 
 async def setup(bot):
     await bot.add_cog(Help(bot))

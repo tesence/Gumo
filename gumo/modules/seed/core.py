@@ -16,7 +16,7 @@ from gumo.api import bf_randomizer
 logger = logging.getLogger(__name__)
 
 
-class BFRandomizer(commands.Cog):
+class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
 
     def __init__(self, bot):
         self.bot = bot
