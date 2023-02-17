@@ -6,16 +6,16 @@ from gumo.modules.seed import models
 SEEDGEN_API_URL = "https://orirando.com"
 
 PATHS_INHERITENCE = {}
-PATHS_INHERITENCE['casual'] = [lp for lp in models.LOGIC_PATHS_MAPPING.values() if lp.startswith('casual')]
+PATHS_INHERITENCE['casual'] = [lp for lp in models.LOGIC_PATHS.values() if lp.startswith('casual')]
 PATHS_INHERITENCE['standard'] = PATHS_INHERITENCE['casual'] + \
-                                [lp for lp in models.LOGIC_PATHS_MAPPING.values() if lp.startswith('standard')]
+                                [lp for lp in models.LOGIC_PATHS.values() if lp.startswith('standard')]
 PATHS_INHERITENCE['expert'] = PATHS_INHERITENCE['standard'] + \
-                              [lp for lp in models.LOGIC_PATHS_MAPPING.values() if lp.startswith('expert')] + \
-                              [models.LOGIC_PATHS_MAPPING['dbash']]
+                              [lp for lp in models.LOGIC_PATHS.values() if lp.startswith('expert')] + \
+                              [models.LOGIC_PATHS['dbash']]
 PATHS_INHERITENCE['master'] = PATHS_INHERITENCE['expert'] + \
-                              [lp for lp in models.LOGIC_PATHS_MAPPING.values() if lp.startswith('master')]
+                              [lp for lp in models.LOGIC_PATHS.values() if lp.startswith('master')]
 PATHS_INHERITENCE['glitched'] = PATHS_INHERITENCE['expert'] + \
-                                [models.LOGIC_PATHS_MAPPING['glitched'], models.LOGIC_PATHS_MAPPING['timedlevel']]
+                                [models.LOGIC_PATHS['glitched'], models.LOGIC_PATHS['timedlevel']]
 
 
 class BFRandomizerApiClient(base.APIClient):
@@ -30,26 +30,26 @@ class BFRandomizerApiClient(base.APIClient):
         default_logic_paths = PATHS_INHERITENCE[logic_mode]
         # Add the ones passed as argument if they are not already present
         logic_paths = default_logic_paths + \
-            [models.LOGIC_PATHS_MAPPING[lp] for lp in logic_paths if lp not in default_logic_paths]
+            [models.LOGIC_PATHS[lp] for lp in logic_paths if lp not in default_logic_paths]
         for logic_path in logic_paths:
             params.add(('path', logic_path))
 
         # Set the key mode
         keymode = key_mode or 'clues'
-        params.add(('key_mode', models.KEY_MODE_MAPPING[keymode]))
+        params.add(('key_mode', models.KEY_MODES[keymode]))
 
         # Set item pool
         item_pool = item_pool or 'standard'
-        params.add(('pool_preset', models.ITEM_POOL_MAPPING[item_pool]))
+        params.add(('pool_preset', models.ITEM_POOLS[item_pool]))
 
         # Goal modes (treated as variations)
         goal_modes = goal_modes or ['forcetrees']
         for goal_mode in goal_modes:
-            params.add(('var', models.GOAL_MODES_MAPPING[goal_mode]))
+            params.add(('var', models.GOAL_MODES[goal_mode]))
 
         # Variations
         for variation in variations:
-            params.add(('var', models.VARIATIONS_MAPPING[variation]))
+            params.add(('var', models.VARIATIONS[variation]))
 
         # Handle all the preset specificities
         if logic_mode == "easy":
@@ -59,10 +59,10 @@ class BFRandomizerApiClient(base.APIClient):
         elif logic_mode == "expert":
             pass
         elif logic_mode == "master":
-            params.add(("path_diff", models.PATH_DIFFICULTY_MAPPING['hard']))
-            params.add(('var', models.VARIATIONS_MAPPING['starved']))
+            params.add(("path_diff", models.PATH_DIFFICULTIES['hard']))
+            params.add(('var', models.VARIATIONS['starved']))
         elif logic_mode == "glitched":
-            params.add(("path_diff", models.PATH_DIFFICULTY_MAPPING['hard']))
+            params.add(("path_diff", models.PATH_DIFFICULTIES['hard']))
 
         url = f"{SEEDGEN_API_URL}/generator/json?{parse.urlencode(list(params))}"
         return await self.get(url, return_json=True)

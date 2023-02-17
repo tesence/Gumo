@@ -1,4 +1,4 @@
-LOGIC_MODES_MAPPING = {
+LOGIC_MODES = {
     'casual': "Casual",
     'standard': "Standard",
     'expert': "Expert",
@@ -6,24 +6,26 @@ LOGIC_MODES_MAPPING = {
     'glitched': "Glitched"
 }
 
-KEY_MODE_MAPPING = {
-    'default': 'Default',
-    'shards': 'Shards',
-    'limitkeys': 'LimitKeys',
+KEY_MODES = {
+    'default': "Default",
+    'shards': "Shards",
+    'limitkeys': "LimitKeys",
     'clues': "Clues"
 }
 
-GOAL_MODES_MAPPING = {
+GOAL_MODES = {
     'default': "",
     'forcetrees': "ForceTrees",
+    'ft': "ForceTrees",
     'worldtour': "WorldTour",
     'wt': "WorldTour",
     'forcemaps': "ForceMaps",
+    'fm': "ForceMaps",
     'warmthfrags': "WarmthFrags",
     'wf': "WarmthFrags",
 }
 
-VARIATIONS_MAPPING = {
+VARIATIONS = {
     'starved': "Starved",
     'ohko': "OHKO",
     '0xp': "0XP",
@@ -36,7 +38,7 @@ VARIATIONS_MAPPING = {
     'grenadestarved': "GrenadeStarved"
 }
 
-LOGIC_PATHS_MAPPING = {
+LOGIC_PATHS = {
     # Casual
     'casualcore': "casual-core",
     'casualdboost': "casual-dboost",
@@ -62,7 +64,7 @@ LOGIC_PATHS_MAPPING = {
     'insane': "insane"
 }
 
-ITEM_POOL_MAPPING = {
+ITEM_POOLS = {
     'standard': "Standard",
     'competitive': "Competitive",
     'bonuslite': "Bonus Lite",
@@ -70,7 +72,7 @@ ITEM_POOL_MAPPING = {
     'hard': "Hard"
 }
 
-PATH_DIFFICULTY_MAPPING = {
+PATH_DIFFICULTIES = {
     'easy': "Easy",
     'normal': "Normal",
     'hard': "Hard"

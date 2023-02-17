@@ -15,6 +15,27 @@ from gumo.api import bf_randomizer
 
 logger = logging.getLogger(__name__)
 
+HELP_STRING = """
+    Defaults options are: `Standard,Clues,ForceTrees`
+
+    **Logic Modes**: `casual`, `standard`, `expert`, `master`, `glitched`
+
+    **Key Modes**: `default`, `shards`, `limitkeys`, `clues`
+
+    **Goal Modes**: `forcetrees` (or `ft`), `worldtour` (or `wt`), `forcemaps` (or `fm`), `warmthfrags` (or `wf`)
+
+    **Variations**: `starved`, `ohko`, `0xp`, `closeddungeons`, `extracopies`, `strictmapstones`, `tpstarved`, `skipfinalescape`, `wallstarved`, `grenadestarved`
+
+    **Logic Paths**
+    casual: `casual-core`, `casual-dboost`
+    standard: `standard-core`, `standard-dboost`, `standard-lure`, `standard-abilities`
+    expert: `expert-core`, `expert-dboost`, `expert-lure`, `expert-abilities`
+    master: `master-core`, `master-dboost`, `master-lure`, `master-abilities`
+    misc: `dbash`, `gjump`, `timedlevel`, `insane`
+
+    **Item Pools**: `standard`, `competitive`, `bonuslite`, `extrabonus`, `hard`
+"""
+
 
 class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
 
@@ -38,12 +59,16 @@ class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
 
         return seed_name, body
 
-    @commands.command()
+    _SEED_HELP_TEXT = "Generate a seed using a random seed name"
+
+    @commands.command(help=f"{_SEED_HELP_TEXT}\n{HELP_STRING}")
     async def seed(self, ctx, *, body=""):
         seed_name, body = self._pop_seed_names(body)
         await self._seed(ctx, body, seed_name)
 
-    @commands.command()
+    _DAILY_HELP_TEXT = "Generate a seed using the date as seed name"
+
+    @commands.command(help=f"{_DAILY_HELP_TEXT}\n{HELP_STRING}")
     async def daily(self, ctx, *, body=""):
         _, body = self._pop_seed_names(body)
         # pylint: disable=no-value-for-parameter
@@ -71,22 +96,22 @@ class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
 
         for flag in flags:
 
-            if flag in models.LOGIC_MODES_MAPPING:
+            if flag in models.LOGIC_MODES:
                 logic_mode = flag
 
-            elif flag in models.KEY_MODE_MAPPING:
+            elif flag in models.KEY_MODES:
                 key_mode = flag
 
-            elif flag in models.ITEM_POOL_MAPPING:
+            elif flag in models.ITEM_POOLS:
                 item_pool = flag
 
-            elif flag in models.GOAL_MODES_MAPPING:
+            elif flag in models.GOAL_MODES:
                 goal_modes.append(flag)
 
-            elif flag in models.VARIATIONS_MAPPING:
+            elif flag in models.VARIATIONS:
                 variations.append(flag)
 
-            elif flag in models.LOGIC_PATHS_MAPPING:
+            elif flag in models.PATH_DIFFICULTIES:
                 logic_paths.append(flag)
 
         logger.debug(f"Detected flags: seed_name=\"{seed_name}\" logic_mode=\"{logic_mode}\" "
