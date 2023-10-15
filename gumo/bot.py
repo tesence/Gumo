@@ -7,7 +7,6 @@ logger = logging.getLogger(__name__)
 MODULES = [
     "gumo.modules.emoji_chain",
     "gumo.modules.help",
-    "gumo.modules.roles",
     "gumo.modules.seed"
 ]
 
