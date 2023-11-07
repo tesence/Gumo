@@ -149,10 +149,11 @@ class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
         variations = [variation.name for variation in [variation1, variation2, variation3] if variation]
         item_pool = getattr(item_pool, 'name', 'Competitive')
         return await self._seed(interaction=interaction, seed_name=seed_name, logic_mode=logic_mode, key_mode=key_mode,
-                                goal_mode=goal_mode, spawn=spawn, variations=variations, item_pool="Competitive")
+                                goal_mode=goal_mode, spawn=spawn, variations=variations, item_pool="Competitive",
+                                silent=True)
 
     async def _seed(self, interaction, seed_name, logic_mode=None, key_mode=None, goal_mode=None, spawn=None,
-                    variations=(), item_pool=None):
+                    variations=(), item_pool=None, silent=False):
 
         logger.debug(f"Detected flags: seed_name=\"{seed_name}\" logic_mode=\"{logic_mode}\" key_mode=\"{key_mode}\" "
                      f"goal_mode=\"{goal_mode}\" spawn=\"{spawn}\" variations={variations} item_pool=\"{item_pool}\" ")
@@ -165,11 +166,12 @@ class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
 
         seed_header = seed_data['players'][0]['seed'].split("\n")[0]
         message = f"`{seed_header}`\n"
-        message += f"**Spoiler link**: {api.SEEDGEN_API_URL}{seed_data['players'][0]['spoiler_url']}\n"
-        message += f"**Map**: {api.SEEDGEN_API_URL}{seed_data['map_url']}\n"
-        message += f"**History**: {api.SEEDGEN_API_URL}{seed_data['history_url']}\n"
+        if not silent:
+            message += f"**Spoiler**: [link]({api.SEEDGEN_API_URL}{seed_data['players'][0]['spoiler_url']})\n"
+            message += f"**Map**: [link]({api.SEEDGEN_API_URL}{seed_data['map_url']})\n"
+            message += f"**History**: [link]({api.SEEDGEN_API_URL}{seed_data['history_url']})\n"
 
-        await interaction.followup.send(message, files=[discord.File(seed_buffer, filename="randomizer.dat")])
+        return await interaction.followup.send(message, files=[discord.File(seed_buffer, filename="randomizer.dat")])
 
     @seed.error
     @daily.error
