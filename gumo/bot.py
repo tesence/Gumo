@@ -6,7 +6,6 @@ logger = logging.getLogger(__name__)
 
 MODULES = [
     "gumo.modules.emoji_chain",
-    "gumo.modules.help",
     "gumo.modules.seed"
 ]
 
@@ -25,3 +24,7 @@ class Bot(commands.Bot):
     async def setup_hook(self):
         for module in MODULES:
             await self.load_extension(module)
+
+    async def on_ready(self):
+        synced = await self.tree.sync()
+        logger.debug(f"Synced commands: {len(synced)}")
