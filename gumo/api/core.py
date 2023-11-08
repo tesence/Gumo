@@ -1,5 +1,6 @@
 import logging
 from urllib import parse
+import random
 
 import aiohttp
 
@@ -29,8 +30,15 @@ class BFRandomizerApiClient:
         self._session = aiohttp.ClientSession(*args, **kwargs, raise_for_status=True)
 
 
-    async def get_data(self, seed_name, logic_mode=None, key_mode=None, goal_mode=None, spawn=None,  variations=(),
+    async def get_data(self, seed_name=None, logic_mode=None, key_mode=None, goal_mode=None, spawn=None,  variations=(),
                        item_pool=None):
+
+        seed_name = seed_name or str(random.randint(1, 10**9))
+        logic_mode = logic_mode or "Standard"
+        key_mode = key_mode or "Clues"
+        goal_mode = goal_mode or "Force Trees"
+        spawn = spawn or "Glades"
+        item_pool = item_pool or "Standard"
 
         params = {('seed', seed_name)}
 

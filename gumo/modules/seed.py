@@ -59,13 +59,12 @@ class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
                    variation3: Optional[app_commands.Choice[str]],
                    item_pool: Optional[app_commands.Choice[str]]):
         await interaction.response.defer()
-        seed_name = seed_name or str(random.randint(1, 10**9))
-        logic_mode = getattr(logic_mode, 'name', 'Standard')
-        key_mode = getattr(key_mode, 'name', 'Clues')
-        goal_mode = getattr(goal_mode, 'name', 'Force Trees')
-        spawn = getattr(spawn, 'name', 'Glades')
+        logic_mode = getattr(logic_mode, 'name', None)
+        key_mode = getattr(key_mode, 'name', None)
+        goal_mode = getattr(goal_mode, 'name', None)
+        spawn = getattr(spawn, 'name', None)
+        item_pool = getattr(item_pool, 'name', None)
         variations = [variation.name for variation in [variation1, variation2, variation3] if variation]
-        item_pool = getattr(item_pool, 'name', 'Standard')
         return await self._seed(interaction=interaction, seed_name=seed_name, logic_mode=logic_mode, key_mode=key_mode,
                                 goal_mode=goal_mode, spawn=spawn, variations=variations, item_pool=item_pool)
 
@@ -87,23 +86,23 @@ class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
     @app_commands.describe(item_pool="Randomizer item pool")
     @app_commands.choices(item_pool=ITEM_POOL_CHOICES)
     async def daily(self, interaction: discord.Interaction,
-                   logic_mode: Optional[app_commands.Choice[str]],
-                   key_mode: Optional[app_commands.Choice[str]],
-                   goal_mode: Optional[app_commands.Choice[str]],
-                   spawn: Optional[app_commands.Choice[str]],
-                   variation1: Optional[app_commands.Choice[str]],
-                   variation2: Optional[app_commands.Choice[str]],
-                   variation3: Optional[app_commands.Choice[str]],
-                   item_pool: Optional[app_commands.Choice[str]]):
+                    logic_mode: Optional[app_commands.Choice[str]],
+                    key_mode: Optional[app_commands.Choice[str]],
+                    goal_mode: Optional[app_commands.Choice[str]],
+                    spawn: Optional[app_commands.Choice[str]],
+                    variation1: Optional[app_commands.Choice[str]],
+                    variation2: Optional[app_commands.Choice[str]],
+                    variation3: Optional[app_commands.Choice[str]],
+                    item_pool: Optional[app_commands.Choice[str]]):
         await interaction.response.defer()
         # pylint: disable=no-value-for-parameter
         seed_name = pytz.UTC.localize(datetime.now()).astimezone(pytz.timezone('US/Pacific')).strftime("%Y-%m-%d")
-        logic_mode = getattr(logic_mode, 'name', 'Standard')
-        key_mode = getattr(key_mode, 'name', 'Clues')
-        goal_mode = getattr(goal_mode, 'name', 'Force Trees')
-        spawn = getattr(spawn, 'name', 'Glades')
+        logic_mode = getattr(logic_mode, 'name', None)
+        key_mode = getattr(key_mode, 'name', None)
+        goal_mode = getattr(goal_mode, 'name', None)
+        spawn = getattr(spawn, 'name', None)
+        item_pool = getattr(item_pool, 'name', None)
         variations = [variation.name for variation in [variation1, variation2, variation3] if variation]
-        item_pool = getattr(item_pool, 'name', 'Standard')
         return await self._seed(interaction=interaction, seed_name=seed_name, logic_mode=logic_mode, key_mode=key_mode,
                                 goal_mode=goal_mode, spawn=spawn, variations=variations, item_pool=item_pool)
 
@@ -142,42 +141,49 @@ class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
         random.seed(week_number)
         seed_name = str(random.randint(1, 10**9))
         random.seed(None)
-        logic_mode = getattr(logic_mode, 'name', 'Standard')
-        key_mode = getattr(key_mode, 'name', 'Clues')
-        goal_mode = getattr(goal_mode, 'name', 'Force Trees')
-        spawn = getattr(spawn, 'name', 'Glades')
-        variations = [variation.name for variation in [variation1, variation2, variation3] if variation]
+        logic_mode = getattr(logic_mode, 'name', None)
+        key_mode = getattr(key_mode, 'name', None)
+        goal_mode = getattr(goal_mode, 'name', None)
+        spawn = getattr(spawn, 'name', None)
         item_pool = getattr(item_pool, 'name', 'Competitive')
+        variations = [variation.name for variation in [variation1, variation2, variation3] if variation]
         return await self._seed(interaction=interaction, seed_name=seed_name, logic_mode=logic_mode, key_mode=key_mode,
-                                goal_mode=goal_mode, spawn=spawn, variations=variations, item_pool="Competitive",
+                                goal_mode=goal_mode, spawn=spawn, variations=variations, item_pool=item_pool,
                                 silent=True)
 
     async def _seed(self, interaction, seed_name, logic_mode=None, key_mode=None, goal_mode=None, spawn=None,
                     variations=(), item_pool=None, silent=False):
 
-        logger.debug(f"Detected flags: seed_name=\"{seed_name}\" logic_mode=\"{logic_mode}\" key_mode=\"{key_mode}\" "
-                     f"goal_mode=\"{goal_mode}\" spawn=\"{spawn}\" variations={variations} item_pool=\"{item_pool}\" ")
+        seed_data = await self._get_seed_data(seed_name=seed_name, logic_mode=logic_mode, key_mode=key_mode,
+                                              goal_mode=goal_mode, spawn=spawn, variations=variations,
+                                              item_pool=item_pool)
 
+        message = f"`{seed_data['seed_header']}`\n"
+        if not silent:
+            message += f"**Spoiler**: [link]({seed_data['spoiler_url']})\n"
+            message += f"**Map**: [link]({seed_data['map_url']})\n"
+            message += f"**History**: [link]({seed_data['spoiler_url']})\n"
+
+        return await interaction.followup.send(message, files=[seed_data['seed_file']])
+
+    async def _get_seed_data(self, seed_name, logic_mode=None, key_mode=None, goal_mode=None, spawn=None,
+                             variations=(), item_pool=None):
         seed_data = await self.api_client.get_data(seed_name=seed_name, logic_mode=logic_mode, key_mode=key_mode,
                                                    goal_mode=goal_mode, spawn=spawn, variations=variations,
                                                    item_pool=item_pool)
-
         seed_buffer = io.BytesIO(bytes(seed_data['players'][0]['seed'], encoding="utf8"))
-
-        seed_header = seed_data['players'][0]['seed'].split("\n")[0]
-        message = f"`{seed_header}`\n"
-        if not silent:
-            message += f"**Spoiler**: [link]({api.SEEDGEN_API_URL}{seed_data['players'][0]['spoiler_url']})\n"
-            message += f"**Map**: [link]({api.SEEDGEN_API_URL}{seed_data['map_url']})\n"
-            message += f"**History**: [link]({api.SEEDGEN_API_URL}{seed_data['history_url']})\n"
-
-        return await interaction.followup.send(message, files=[discord.File(seed_buffer, filename="randomizer.dat")])
+        return {
+            'seed_header': seed_data['players'][0]['seed'].split("\n")[0],
+            'spoiler_url': f"{api.SEEDGEN_API_URL}{seed_data['players'][0]['spoiler_url']}",
+            'map_url': f"{api.SEEDGEN_API_URL}{seed_data['map_url']}",
+            'history_url': f"{api.SEEDGEN_API_URL}{seed_data['history_url']}",
+            'seed_file': discord.File(seed_buffer, filename='randomizer.dat')
+        }
 
     @seed.error
     @daily.error
     @league_seed.error
     async def seed_error(self, interaction, error):
-        logger.exception("An error occured while generating the seed")
         await interaction.followup.send("An error occured while generating the seed")
 
 async def setup(bot):
