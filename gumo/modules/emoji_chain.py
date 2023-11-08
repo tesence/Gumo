@@ -64,8 +64,8 @@ class EmojiChain(commands.Cog):
            len(authors) == len(set(authors)):
             await asyncio.sleep(self._timeout)
             await ctx.send(emoji)
-            logger.debug(f"Contributed to an emoji chain of {self._threshold} {emoji.name} initiated by "
-                         f"'{messages[0].author.display_name}' in channel '#{ctx.channel}'")
+            logger.info(f"Contributed to an emoji chain of {self._threshold} {emoji.name} initiated by "
+                         f"'{messages[0].author.display_name}' in channel #{ctx.channel}")
             self._threshold = random.randint(3, 7)
             self._timeout = random.randint(0, 20)
 
@@ -102,8 +102,8 @@ class EmojiChain(commands.Cog):
 
                 await asyncio.sleep(self._timeout)
                 await message.add_reaction(emoji)
-                logger.debug(f"Contributed to a reaction emoji chain of {self._threshold} {emoji.name} on a message "
-                             f"sent by {message.author.display_name}' in channel '#{ctx.channel}'")
+                logger.info(f"Contributed to a reaction emoji chain of {self._threshold} {emoji.name} on a message "
+                            f"sent by '{message.author.display_name}' in channel #{ctx.channel}")
                 self._threshold = random.randint(3, 7)
                 self._timeout = random.randint(0, 20)
 

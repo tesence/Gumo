@@ -70,6 +70,6 @@ class BFRandomizerApiClient:
             params.add(("path_diff", models.PATH_DIFFICULTIES['Hard']))
 
         url = f"{SEEDGEN_API_URL}/generator/json?{parse.urlencode(list(params))}"
-        logger.debug(f"Outgoing request: {url}")
+        logger.info(f"Outgoing request: {url}")
         resp = await self._session.request('GET', url)
         return await resp.json()
