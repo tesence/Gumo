@@ -1,3 +1,7 @@
+"""
+Define the mapping between Randomizer parameters presented to the user and the parameters passed in the API request.
+"""
+
 LOGIC_MODES = {
     'Casual': "Casual",
     'Standard': "Standard",

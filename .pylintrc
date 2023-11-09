@@ -1,13 +1,14 @@
 [REPORTS]
-
 output-format=colorized
 msg-template='{abspath}:{line:5d},{column:2d}: {msg} ({symbol})'
-disable=missing-module-docstring,missing-class-docstring,missing-function-docstring,logging-fstring-interpolation,f-string-without-interpolation
+disable=
+    assigning-non-slot,
+    too-few-public-methods,
+    too-many-arguments,
+    no-value-for-parameter
 
 [FORMAT]
-
 max-line-length=119
 
 [DESIGN]
-
 max-args=10

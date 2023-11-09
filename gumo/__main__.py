@@ -1,8 +1,12 @@
+"""
+Instanciate and run the discord Bot
+"""
+
 import os
 
 from gumo import bot as client
 
-
+# pylint: disable=missing-function-docstring
 def main():
 
     bot = client.Bot(command_prefix="!")

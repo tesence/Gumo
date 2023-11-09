@@ -1,3 +1,9 @@
+"""
+Define a module to make the bot join emoji chains when:
+- People send the same emoji several times in a row
+- People react to a message using the same emoji
+"""
+
 import asyncio
 import logging
 import random
@@ -12,15 +18,17 @@ logger = logging.getLogger(__name__)
 CUSTOM_EMOJI_RE = re.compile(r'<?(?P<animated>a)?:?(?P<name>[A-Za-z0-9\_]+):(?P<id>[0-9]{13,20})>?')
 
 
-class EmojiChain(commands.Cog):
+class EmojiChain(commands.Cog, name="Emoji Chain"):
+    """Custom Cog"""
 
     def __init__(self, bot):
         self.bot = bot
         self._threshold = random.randint(3, 7)
         self._timeout = random.randint(0, 20)
 
+    # pylint: disable=missing-function-docstring
     @commands.Cog.listener()
-    async def on_message(self, message):
+    async def on_message(self, message: discord.Message):
 
         ctx = await self.bot.get_context(message)
 
@@ -64,13 +72,14 @@ class EmojiChain(commands.Cog):
            len(authors) == len(set(authors)):
             await asyncio.sleep(self._timeout)
             await ctx.send(emoji)
-            logger.info(f"Contributed to an emoji chain of {self._threshold} {emoji.name} initiated by "
-                         f"'{messages[0].author.display_name}' in channel #{ctx.channel}")
+            logger.info("Contributed to an emoji chain of %s %s initiated by '%s' in channel #%s", self._threshold,
+                        emoji.name, messages[0].author.display_name, ctx.channel)
             self._threshold = random.randint(3, 7)
             self._timeout = random.randint(0, 20)
 
+    # pylint: disable=missing-function-docstring
     @commands.Cog.listener()
-    async def on_raw_reaction_add(self, payload):
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
 
         channel = self.bot.get_channel(payload.channel_id)
         message = await channel.fetch_message(payload.message_id)
@@ -102,11 +111,11 @@ class EmojiChain(commands.Cog):
 
                 await asyncio.sleep(self._timeout)
                 await message.add_reaction(emoji)
-                logger.info(f"Contributed to a reaction emoji chain of {self._threshold} {emoji.name} on a message "
-                            f"sent by '{message.author.display_name}' in channel #{ctx.channel}")
+                logger.info("Contributed to a reaction emoji chain of %s %s on a message sent by '%s' in channel #%s",
+                            self._threshold, emoji.name, message.author.display_name, ctx.channel)
                 self._threshold = random.randint(3, 7)
                 self._timeout = random.randint(0, 20)
 
-
+# pylint: disable=missing-function-docstring
 async def setup(bot):
     await bot.add_cog(EmojiChain(bot))
