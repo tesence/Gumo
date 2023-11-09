@@ -77,13 +77,11 @@ class BFRandomizerApiClient:
         elif logic_mode == "Standard":
             params.add(('cell_freq', "40"))
         elif logic_mode == "Expert":
-            params.add(('cell_freq', "256"))
+            pass
         elif logic_mode == "Master":
-            params.add(('cell_freq', "256"))
             params.add(("path_diff", models.PATH_DIFFICULTIES['Hard']))
             params.add(('var', models.VARIATIONS['Starved']))
         elif logic_mode == "Glitched":
-            params.add(('cell_freq', "256"))
             params.add(("path_diff", models.PATH_DIFFICULTIES['Hard']))
 
         url = f"{SEEDGEN_API_URL}/generator/json?{parse.urlencode(list(params))}"
