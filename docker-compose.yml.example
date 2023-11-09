@@ -1,6 +1,6 @@
 version: "3.9"
 services:
-  tournament-bot:
+  gumo:
     build: .
     image: gumo:latest
     container_name: gumo
