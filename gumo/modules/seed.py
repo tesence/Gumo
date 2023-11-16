@@ -8,8 +8,11 @@ Provide Ori and the Blind Forest seed generation commands:
 
 import logging
 from datetime import datetime, timedelta
+import functools
 import io
+import os
 import random
+import re
 from typing import Optional
 
 import discord
@@ -17,6 +20,9 @@ from discord import app_commands
 from discord.ext import commands
 
 import pytz
+
+import gspread
+from google.oauth2 import service_account
 
 from gumo import api
 from gumo.api import models
@@ -31,6 +37,21 @@ VARIATION_CHOICES = [app_commands.Choice(name=name, value=value) for name, value
 LOGIC_PATH_CHOICES = [app_commands.Choice(name=name, value=value) for name, value in models.LOGIC_PATHS.items()]
 ITEM_POOL_CHOICES = [app_commands.Choice(name=name, value=value) for name, value in models.ITEM_POOLS.items()]
 
+class BadDurationArgumentFormat(app_commands.AppCommandError):
+    """Bad duration format Exception"""
+
+# pylint: disable=abstract-method
+class DurationFormatTransformer(app_commands.Transformer):
+    """Duration format transformer"""
+
+    # pylint: disable=arguments-differ
+    async def transform(self, interaction: discord.Interaction, value: str):
+        if r := re.match(r"^(?:([0-9]+):)?([0-9]{2}):([0-9]{2})(?:\.([0-9]+))?$", value):
+            hours, minutes, seconds, milliseconds = r.groups(default='0')
+            milliseconds = milliseconds[:3]
+            if int(minutes) > 59 or int(seconds) > 59: raise BadDurationArgumentFormat()
+            return tuple(map(int, (hours, minutes, seconds, milliseconds)))
+        raise BadDurationArgumentFormat()
 
 class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
     """Custom Cog"""
@@ -38,6 +59,15 @@ class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
     def __init__(self, bot):
         self.bot = bot
         self.api_client = api.BFRandomizerApiClient()
+
+        self.credentials = service_account.Credentials.from_service_account_file(
+            os.getenv("GUMO_BOT_GOOGLE_API_SA_FILE"),
+            scopes = [
+                "https://spreadsheets.google.com/feeds",
+                "https://www.googleapis.com/auth/spreadsheets",
+                "https://www.googleapis.com/auth/drive",
+            ]
+        )
 
     @app_commands.command(name='seed')
     @app_commands.describe(seed_name="A string to be used as seed")
@@ -134,7 +164,7 @@ class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
             item_pool (str, optional): Randomizer item pool. Defaults to None.
         """
         await interaction.response.defer()
-        seed_name = pytz.UTC.localize(datetime.now()).astimezone(pytz.timezone('US/Pacific')).strftime("%Y-%m-%d")
+        seed_name = pytz.UTC.localize(datetime.utcnow()).astimezone(pytz.timezone('US/Pacific')).strftime("%Y-%m-%d")
         logic_mode = getattr(logic_mode, 'name', None)
         key_mode = getattr(key_mode, 'name', None)
         goal_mode = getattr(goal_mode, 'name', None)
@@ -188,7 +218,7 @@ class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
             item_pool (str, optional): Randomizer item pool. Defaults to None.
         """
         await interaction.response.defer(ephemeral=True)
-        week_number = (pytz.UTC.localize(datetime.now()).astimezone(pytz.timezone('US/Eastern')) +
+        week_number = (pytz.UTC.localize(datetime.utcnow()).astimezone(pytz.timezone('US/Eastern')) +
                        timedelta(days=2, hours=3)).isocalendar().week
         random.seed(week_number)
         seed_name = str(random.randint(1, 10**9))
@@ -240,6 +270,52 @@ class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
     # pylint: disable=unused-argument, missing-function-docstring
     async def seed_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         await interaction.followup.send("An error occured while generating the seed")
+
+    @league.command(name='submit')
+    @app_commands.describe(timer="The LiveSplit time (e.g: \"40:43\", \"1:40:43\" or \"1:40:43.630\")")
+    @app_commands.describe(vod="The link to the VOD")
+    async def league_submit(self, interaction: discord.Interaction,
+                            timer: app_commands.Transform[str, DurationFormatTransformer], vod: str):
+        """Submit rando league result
+
+        Args:
+            interaction (discord.Interaction): discord interaction object
+            timer (app_commands.Transform[str, DurationTransformer]): seed timer
+            vod (str): link to the vod
+        """
+        await interaction.response.defer(ephemeral=True)
+
+        part = functools.partial(gspread.authorize, self.credentials)
+        client = await self.bot.loop.run_in_executor(None, part)
+
+        part = functools.partial(client.open, title="Ori Rando League Leaderboard")
+        spreadsheet = await self.bot.loop.run_in_executor(None, part)
+
+        part = functools.partial(spreadsheet.worksheet, "S2 Raw Data")
+        tab = await self.bot.loop.run_in_executor(None, part)
+        records = await self.bot.loop.run_in_executor(None, tab.get_all_records)
+
+        now = pytz.UTC.localize(datetime.utcnow()).astimezone(pytz.timezone('US/Eastern'))
+        date = now.strftime("%Y-%m-%d %H:%M:%S")
+        week_number = (now + timedelta(days=2, hours=3)).isocalendar().week
+        timer = "{:02}:{:02}:{:02}.{:03}".format(*timer)
+        if any((x['Runner'] == interaction.user.display_name and x['Week Number'] == week_number) for x in records):
+            return await interaction.followup.send('You already have submitted this week!')
+
+        part = functools.partial(tab.append_row,
+                                [week_number, date, interaction.user.display_name, timer, vod],
+                                value_input_option="USER_ENTERED")
+        await self.bot.loop.run_in_executor(None, part)
+
+        await interaction.followup.send('Submission successful!')
+
+    @league_submit.error
+    # pylint: disable=missing-function-docstring
+    async def league_submit_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        if isinstance(error, BadDurationArgumentFormat):
+            await interaction.response.send_message("Invalid timer format", ephemeral=True)
+        else:
+            await interaction.response.send_message("An error occured during the submission", ephemeral=True)
 
 # pylint: disable=missing-function-docstring
 async def setup(bot):

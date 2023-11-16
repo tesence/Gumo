@@ -5,7 +5,8 @@ disable=
     assigning-non-slot,
     too-few-public-methods,
     too-many-arguments,
-    no-value-for-parameter
+    no-value-for-parameter,
+    consider-using-f-string
 
 [FORMAT]
 max-line-length=119

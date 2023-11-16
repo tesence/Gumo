@@ -6,4 +6,5 @@ services:
     container_name: gumo
     environment:
       GUMO_BOT_TOKEN: "BOT_TOKEN_HERE"
+      GUMO_BOT_GOOGLE_API_SA_FILE: /path/to/the/service/account/file.json
       # GUMO_LOG_LEVEL: "INFO"
