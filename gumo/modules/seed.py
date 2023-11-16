@@ -87,6 +87,7 @@ class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
     @app_commands.choices(variation3=VARIATION_CHOICES)
     @app_commands.describe(item_pool="Randomizer item pool")
     @app_commands.choices(item_pool=ITEM_POOL_CHOICES)
+    @app_commands.describe(relic_count="(World Tour only) The number of relics to place in the seed")
     async def seed(self, interaction: discord.Interaction,
                    seed_name: Optional[str] = None,
                    logic_mode: Optional[app_commands.Choice[str]] = None,
@@ -96,7 +97,8 @@ class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
                    variation1: Optional[app_commands.Choice[str]] = None,
                    variation2: Optional[app_commands.Choice[str]] = None,
                    variation3: Optional[app_commands.Choice[str]] = None,
-                   item_pool: Optional[app_commands.Choice[str]] = None):
+                   item_pool: Optional[app_commands.Choice[str]] = None,
+                   relic_count: Optional[app_commands.Range[int, 1, 11]] = None):
         """
         Generate an Ori and the Blind Forest Randomizer seed.
 
@@ -111,6 +113,7 @@ class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
             variation2 (Optional[app_commands.Choice[str]], optional): Randomizer extra variation. Defaults to None.
             variation3 (Optional[app_commands.Choice[str]], optional): Randomizer extra variation. Defaults to None.
             item_pool (str, optional): Randomizer item pool. Defaults to None.
+            relic_count (int, optional): Randomizer relic count (World Tour only). Defaults to None.
         """
         await interaction.response.defer()
         logic_mode = getattr(logic_mode, 'name', None)
@@ -120,7 +123,8 @@ class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
         item_pool = getattr(item_pool, 'name', None)
         variations = [variation.name for variation in [variation1, variation2, variation3] if variation]
         await self._seed(interaction=interaction, seed_name=seed_name, logic_mode=logic_mode, key_mode=key_mode,
-                         goal_mode=goal_mode, spawn=spawn, variations=variations, item_pool=item_pool)
+                         goal_mode=goal_mode, spawn=spawn, variations=variations, item_pool=item_pool,
+                         relic_count=relic_count)
 
     @app_commands.command(name='daily')
     @app_commands.describe(logic_mode="Randomizer logic mode")
@@ -139,6 +143,7 @@ class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
     @app_commands.choices(variation3=VARIATION_CHOICES)
     @app_commands.describe(item_pool="Randomizer item pool")
     @app_commands.choices(item_pool=ITEM_POOL_CHOICES)
+    @app_commands.describe(relic_count="(World Tour only) The number of relics to place in the seed")
     async def daily(self, interaction: discord.Interaction,
                     logic_mode: Optional[app_commands.Choice[str]] = None,
                     key_mode: Optional[app_commands.Choice[str]] = None,
@@ -147,7 +152,8 @@ class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
                     variation1: Optional[app_commands.Choice[str]] = None,
                     variation2: Optional[app_commands.Choice[str]] = None,
                     variation3: Optional[app_commands.Choice[str]] = None,
-                    item_pool: Optional[app_commands.Choice[str]] = None):
+                    item_pool: Optional[app_commands.Choice[str]] = None,
+                    relic_count: Optional[app_commands.Range[int, 1, 11]] = None):
         """
         Generate an Ori and the Blind Forest Randomizer seed.
         The seed name is forced to the current date in YYYY-MM-DD format.
@@ -162,6 +168,7 @@ class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
             variation2 (Optional[app_commands.Choice[str]], optional): Randomizer extra variation. Defaults to None.
             variation3 (Optional[app_commands.Choice[str]], optional): Randomizer extra variation. Defaults to None.
             item_pool (str, optional): Randomizer item pool. Defaults to None.
+            relic_count (int, optional): Randomizer relic count (World Tour only). Defaults to None.
         """
         await interaction.response.defer()
         seed_name = pytz.UTC.localize(datetime.utcnow()).astimezone(pytz.timezone('US/Pacific')).strftime("%Y-%m-%d")
@@ -172,7 +179,8 @@ class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
         item_pool = getattr(item_pool, 'name', None)
         variations = (variation.name for variation in [variation1, variation2, variation3] if variation)
         await self._seed(interaction=interaction, seed_name=seed_name, logic_mode=logic_mode, key_mode=key_mode,
-                         goal_mode=goal_mode, spawn=spawn, variations=variations, item_pool=item_pool)
+                         goal_mode=goal_mode, spawn=spawn, variations=variations, item_pool=item_pool,
+                         relic_count=relic_count)
 
     league = app_commands.Group(name="league", description="BF Rando League commands")
 
@@ -193,6 +201,7 @@ class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
     @app_commands.choices(variation3=VARIATION_CHOICES)
     @app_commands.describe(item_pool="Randomizer item pool")
     @app_commands.choices(item_pool=ITEM_POOL_CHOICES)
+    @app_commands.describe(relic_count="(World Tour only) The number of relics to place in the seed")
     async def league_seed(self, interaction: discord.Interaction,
                           logic_mode: Optional[app_commands.Choice[str]] = None,
                           key_mode: Optional[app_commands.Choice[str]] = None,
@@ -201,7 +210,8 @@ class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
                           variation1: Optional[app_commands.Choice[str]] = None,
                           variation2: Optional[app_commands.Choice[str]] = None,
                           variation3: Optional[app_commands.Choice[str]] = None,
-                          item_pool: Optional[app_commands.Choice[str]] = None):
+                          item_pool: Optional[app_commands.Choice[str]] = None,
+                          relic_count: Optional[app_commands.Range[int, 1, 11]] = None):
         """
         Generate an Ori and the Blind Forest Randomizer seed.
         The seed name and option are set to be compliant with the Rando League rules by default.
@@ -231,15 +241,15 @@ class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
         variations = (variation.name for variation in [variation1, variation2, variation3] if variation)
         await self._seed(interaction=interaction, seed_name=seed_name, logic_mode=logic_mode, key_mode=key_mode,
                          goal_mode=goal_mode, spawn=spawn, variations=variations, item_pool=item_pool,
-                         silent=True)
+                         relic_count=relic_count, silent=True)
 
     async def _seed(self, interaction: discord.Interaction, seed_name: str, logic_mode: str = None,
                     key_mode: str = None, goal_mode: str = None, spawn: str = None, variations: tuple = (),
-                    item_pool: str = None, silent: bool = False):
+                    item_pool: str = None, relic_count: int = None, silent: bool = False):
 
         seed_data = await self._get_seed_data(seed_name=seed_name, logic_mode=logic_mode, key_mode=key_mode,
                                               goal_mode=goal_mode, spawn=spawn, variations=variations,
-                                              item_pool=item_pool)
+                                              item_pool=item_pool, relic_count=relic_count)
 
         message = f"`{seed_data['seed_header']}`\n"
         if not silent:
@@ -251,10 +261,10 @@ class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
 
     async def _get_seed_data(self, seed_name: str = None, logic_mode: str = None, key_mode: str = None,
                              goal_mode: str = None, spawn: str = None, variations: tuple = (),
-                             item_pool: str = None) -> dict:
+                             item_pool: str = None, relic_count: int = None):
         seed_data = await self.api_client.get_data(seed_name=seed_name, logic_mode=logic_mode, key_mode=key_mode,
                                                    goal_mode=goal_mode, spawn=spawn, variations=variations,
-                                                   item_pool=item_pool)
+                                                   item_pool=item_pool, relic_count=relic_count)
         seed_buffer = io.BytesIO(bytes(seed_data['players'][0]['seed'], encoding="utf8"))
         return {
             'seed_header': seed_data['players'][0]['seed'].split("\n")[0],

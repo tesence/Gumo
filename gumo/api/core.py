@@ -34,7 +34,8 @@ class BFRandomizerApiClient:
         self._session = aiohttp.ClientSession(*args, **kwargs, raise_for_status=True)
 
     async def get_data(self, seed_name: str = None, logic_mode: str = None, key_mode: str = None,
-                       goal_mode: str = None, spawn: str = None, variations: tuple = (), item_pool: str = None):
+                       goal_mode: str = None, spawn: str = None, variations: tuple = (), item_pool: str = None,
+                       relic_count: int = None):
         """
         Request a seed data to the Blind Forest Randomizer API
 
@@ -56,6 +57,7 @@ class BFRandomizerApiClient:
         goal_mode = goal_mode or "Force Trees"
         spawn = spawn or "Glades"
         item_pool = item_pool or "Standard"
+        relic_count = relic_count or 8
 
         params = {('seed', seed_name)}
 
@@ -65,6 +67,7 @@ class BFRandomizerApiClient:
         params.add(('key_mode', models.KEY_MODES[key_mode]))
         params.add(('var', models.GOAL_MODES[goal_mode]))
         params.add(('pool_preset', models.ITEM_POOLS[item_pool]))
+        params.add(('relics', relic_count))
         params.add(('spawn', spawn))
 
         # Variations

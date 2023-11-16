@@ -56,7 +56,9 @@ class Bot(commands.Bot):
                   f"/{interaction.command.qualified_name}"
 
         if "options" in interaction.data:
-            arguments = [f"{opt['name']}='{opt['value']}'" for opt in interaction.data['options'][0]['options']]
+            options = interaction.data['options'][0]['options'] if interaction.command.parent \
+                      else interaction.data['options']
+            arguments = [f"{opt['name']}='{opt['value']}'" for opt in options]
             message += f" {' '.join(arguments)}"
 
         logger.info(message)
