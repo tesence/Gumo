@@ -67,8 +67,10 @@ class BFRandomizerApiClient:
         params.add(('key_mode', models.KEY_MODES[key_mode]))
         params.add(('var', models.GOAL_MODES[goal_mode]))
         params.add(('pool_preset', models.ITEM_POOLS[item_pool]))
-        params.add(('relics', relic_count))
         params.add(('spawn', spawn))
+
+        if goal_mode == "World Tour":
+            params.add(('relics', relic_count))
 
         # Variations
         for variation in variations:
