@@ -6,7 +6,8 @@ disable=
     too-few-public-methods,
     too-many-arguments,
     no-value-for-parameter,
-    consider-using-f-string
+    consider-using-f-string,
+    too-many-locals
 
 [FORMAT]
 max-line-length=119

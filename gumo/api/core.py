@@ -2,9 +2,12 @@
 Define a client to interact with the Ori and the Blind Forest Randomizer API
 """
 
+import io
 import logging
 from urllib import parse
 import random
+
+import discord
 
 import aiohttp
 
@@ -33,7 +36,7 @@ class BFRandomizerApiClient:
     def __init__(self, *args, **kwargs):
         self._session = aiohttp.ClientSession(*args, **kwargs, raise_for_status=True)
 
-    async def get_data(self, seed_name: str = None, logic_mode: str = None, key_mode: str = None,
+    async def _get_seed_data(self, seed_name: str = None, logic_mode: str = None, key_mode: str = None,
                        goal_mode: str = None, spawn: str = None, variations: tuple = (), item_pool: str = None,
                        relic_count: int = None):
         """
@@ -47,6 +50,7 @@ class BFRandomizerApiClient:
             spawn (str, optional): Randomizer spawn location. Defaults to None.
             variations (tuple, optional): Randomizer variations. Defaults to ().
             item_pool (str, optional): Randomizer item pool. Defaults to None.
+            relic_count (int, optional): Randomizer relic count (World Tour only). Defaults to None.
 
         Returns:
             dict: The API response content
@@ -93,3 +97,33 @@ class BFRandomizerApiClient:
         logger.info("Outgoing request: %s", url)
         resp = await self._session.request('GET', url)
         return await resp.json()
+
+    async def get_seed(self, seed_name: str = None, logic_mode: str = None, key_mode: str = None,
+                             goal_mode: str = None, spawn: str = None, variations: tuple = (),
+                             item_pool: str = None, relic_count: int = None):
+        """Returns the seed data splitted into different dictionnary keys
+
+        Args:
+            seed_name (str, optional): Seed name. Defaults to None.
+            logic_mode (str, optional): Randomizer logic mode. Defaults to None.
+            key_mode (str, optional): Randomizer key mode. Defaults to None.
+            goal_mode (str, optional): Randomizer goal mode. Defaults to None.
+            spawn (str, optional): Randomizer spawn location. Defaults to None.
+            variations (tuple, optional): Randomizer variations. Defaults to ().
+            item_pool (str, optional): Randomizer item pool. Defaults to None.
+            relic_count (int, optional): Randomizer relic count (World Tour only). Defaults to None.
+
+        Returns:
+            dict: The seed data in a dictonary format
+        """
+        seed_data = await self._get_seed_data(seed_name=seed_name, logic_mode=logic_mode, key_mode=key_mode,
+                                                   goal_mode=goal_mode, spawn=spawn, variations=variations,
+                                                   item_pool=item_pool, relic_count=relic_count)
+        seed_buffer = io.BytesIO(bytes(seed_data['players'][0]['seed'], encoding="utf8"))
+        return {
+            'seed_header': seed_data['players'][0]['seed'].split("\n")[0],
+            'spoiler_url': f"{SEEDGEN_API_URL}{seed_data['players'][0]['spoiler_url']}",
+            'map_url': f"{SEEDGEN_API_URL}{seed_data['map_url']}",
+            'history_url': f"{SEEDGEN_API_URL}{seed_data['history_url']}",
+            'seed_files': [discord.File(seed_buffer, filename='randomizer.dat')]
+        }

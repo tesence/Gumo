@@ -2,6 +2,8 @@
 Define the mapping between Randomizer parameters presented to the user and the parameters passed in the API request.
 """
 
+from discord import app_commands
+
 LOGIC_MODES = {
     'Casual': "Casual",
     'Standard': "Standard",
@@ -89,3 +91,11 @@ PATH_DIFFICULTIES = {
     'Normal': "Normal",
     'Hard': "Hard"
 }
+
+LOGIC_MODE_CHOICES = [app_commands.Choice(name=name, value=name) for name, value in LOGIC_MODES.items()]
+KEY_MODE_CHOICES = [app_commands.Choice(name=name, value=name) for name, value in KEY_MODES.items()]
+GOAL_MODE_CHOICES = [app_commands.Choice(name=name, value=name) for name, value in GOAL_MODES.items()]
+SPAWN_CHOICES = [app_commands.Choice(name=name, value=name) for name, value in SPAWNS.items()]
+VARIATION_CHOICES = [app_commands.Choice(name=name, value=name) for name, value in VARIATIONS.items()]
+LOGIC_PATH_CHOICES = [app_commands.Choice(name=name, value=name) for name, value in LOGIC_PATHS.items()]
+ITEM_POOL_CHOICES = [app_commands.Choice(name=name, value=name) for name, value in ITEM_POOLS.items()]
