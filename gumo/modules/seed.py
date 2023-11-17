@@ -185,47 +185,13 @@ class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
     league = app_commands.Group(name="league", description="BF Rando League commands")
 
     @league.command(name='seed')
-    @app_commands.describe(logic_mode="Randomizer logic mode")
-    @app_commands.choices(logic_mode=LOGIC_MODE_CHOICES)
-    @app_commands.describe(key_mode="Randomizer key mode")
-    @app_commands.choices(key_mode=KEY_MODE_CHOICES)
-    @app_commands.describe(goal_mode="Randomizer goal mode")
-    @app_commands.choices(goal_mode=GOAL_MODE_CHOICES)
-    @app_commands.describe(spawn="Start location")
-    @app_commands.choices(spawn=SPAWN_CHOICES)
-    @app_commands.describe(variation1="Extra randomizer variation")
-    @app_commands.choices(variation1=VARIATION_CHOICES)
-    @app_commands.describe(variation2="Extra randomizer variation")
-    @app_commands.choices(variation2=VARIATION_CHOICES)
-    @app_commands.describe(variation3="Extra randomizer variation")
-    @app_commands.choices(variation3=VARIATION_CHOICES)
-    @app_commands.describe(item_pool="Randomizer item pool")
-    @app_commands.choices(item_pool=ITEM_POOL_CHOICES)
-    @app_commands.describe(relic_count="(World Tour only) The number of relics to place in the seed")
-    async def league_seed(self, interaction: discord.Interaction,
-                          logic_mode: Optional[app_commands.Choice[str]] = None,
-                          key_mode: Optional[app_commands.Choice[str]] = None,
-                          goal_mode: Optional[app_commands.Choice[str]] = None,
-                          spawn: Optional[app_commands.Choice[str]] = None,
-                          variation1: Optional[app_commands.Choice[str]] = None,
-                          variation2: Optional[app_commands.Choice[str]] = None,
-                          variation3: Optional[app_commands.Choice[str]] = None,
-                          item_pool: Optional[app_commands.Choice[str]] = None,
-                          relic_count: Optional[app_commands.Range[int, 1, 11]] = None):
+    async def league_seed(self, interaction: discord.Interaction):
         """
         Generate an Ori and the Blind Forest Randomizer seed.
         The seed name and option are set to be compliant with the Rando League rules by default.
 
         Args:
             interaction (discord.Interaction): discord interaction object
-            logic_mode (str, optional): Randomizer logic mode. Defaults to None.
-            key_mode (str, optional): Randomizer key mode. Defaults to None.
-            goal_mode (str, optional): Randomizer goal mode. Defaults to None.
-            spawn (str, optional): Randomizer spawn location. Defaults to None.
-            variation1 (Optional[app_commands.Choice[str]], optional): Randomizer extra variation. Defaults to None.
-            variation2 (Optional[app_commands.Choice[str]], optional): Randomizer extra variation. Defaults to None.
-            variation3 (Optional[app_commands.Choice[str]], optional): Randomizer extra variation. Defaults to None.
-            item_pool (str, optional): Randomizer item pool. Defaults to None.
         """
         await interaction.response.defer(ephemeral=True)
         week_number = (pytz.UTC.localize(datetime.utcnow()).astimezone(pytz.timezone('US/Eastern')) +
@@ -233,12 +199,13 @@ class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
         random.seed(week_number)
         seed_name = str(random.randint(1, 10**9))
         random.seed(None)
-        logic_mode = getattr(logic_mode, 'name', None)
-        key_mode = getattr(key_mode, 'name', None)
-        goal_mode = getattr(goal_mode, 'name', None)
-        spawn = getattr(spawn, 'name', None)
-        item_pool = getattr(item_pool, 'name', 'Competitive')
-        variations = (variation.name for variation in [variation1, variation2, variation3] if variation)
+        logic_mode = None
+        key_mode = 'Clues'
+        goal_mode = 'World Tour'
+        relic_count = 4
+        spawn = 'Grotto'
+        item_pool = 'Competitive'
+        variations = ()
         await self._seed(interaction=interaction, seed_name=seed_name, logic_mode=logic_mode, key_mode=key_mode,
                          goal_mode=goal_mode, spawn=spawn, variations=variations, item_pool=item_pool,
                          relic_count=relic_count, silent=True)
