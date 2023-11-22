@@ -117,8 +117,8 @@ class BFRandomizerApiClient:
             dict: The seed data in a dictonary format
         """
         seed_data = await self._get_seed_data(seed_name=seed_name, logic_mode=logic_mode, key_mode=key_mode,
-                                                   goal_mode=goal_mode, spawn=spawn, variations=variations,
-                                                   item_pool=item_pool, relic_count=relic_count)
+                                              goal_mode=goal_mode, spawn=spawn, variations=variations,
+                                              item_pool=item_pool, relic_count=relic_count)
         seed_buffer = io.BytesIO(bytes(seed_data['players'][0]['seed'], encoding="utf8"))
         return {
             'seed_header': seed_data['players'][0]['seed'].split("\n")[0],

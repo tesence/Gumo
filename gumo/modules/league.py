@@ -106,7 +106,8 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
     async def cog_app_command_error(self, interaction: discord.Interaction,
                                     error: app_commands.errors.AppCommandError):
         if isinstance(error, app_commands.errors.CheckFailure):
-            return await interaction.response.send_message("You don't have the permissions to use this command")
+            return await interaction.response.send_message("You don't have the permissions to use this command",
+                                                           ephemeral=True)
 
     league = app_commands.Group(name="league", description="BF Rando League commands")
 
