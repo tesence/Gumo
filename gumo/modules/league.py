@@ -316,7 +316,7 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
             error (app_commands.errors.AppCommandError): error raised
         """
         if isinstance(error, BadTimeArgumentFormat):
-            return await interaction.response.send_message("Invalid time format")
+            return await interaction.response.send_message("Invalid time format", ephemeral=True)
         logger.error("An occured during the submission process", exc_info=error)
 
 
