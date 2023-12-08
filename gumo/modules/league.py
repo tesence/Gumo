@@ -43,6 +43,9 @@ class TimeFormatTransformer(app_commands.Transformer):
 
     # pylint: disable=arguments-differ
     async def transform(self, interaction: discord.Interaction, value: str):
+        if value.lower() == "dnf":
+            return "DNF"
+
         if r := re.match(r"^(?:([0-9]+):)?([0-9]{2}):([0-9]{2})(?:\.([0-9]+))?$", value):
             hours, minutes, seconds, milliseconds = r.groups(default='0')
             milliseconds = milliseconds[:3]
@@ -240,7 +243,7 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         now = pytz.UTC.localize(datetime.utcnow()).astimezone(pytz.timezone('US/Eastern'))
         date = now.strftime("%Y-%m-%d %H:%M:%S")
         week_number = get_week_number()
-        timer = "{:02}:{:02}:{:02}.{:03}".format(*timer)
+        timer = "DNF" if timer == "DNF" else "{:02}:{:02}:{:02}.{:03}".format(*timer)
         if any((x['Runner'] == interaction.user.display_name and x['Week Number'] == week_number) for x in records):
             return await interaction.followup.send(content='You already have submitted this week!')
 
