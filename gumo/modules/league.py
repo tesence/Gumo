@@ -8,6 +8,7 @@ Provide Ori and the Blind Forest rando league commands
 
 """
 
+import asyncio
 import logging
 from datetime import datetime, timedelta
 import functools
@@ -224,6 +225,8 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         """
         await interaction.response.defer(ephemeral=True)
 
+        seed_task = asyncio.create_task(self._league_seed())
+
         part = functools.partial(gspread.authorize, self.credentials)
         client = await self.bot.loop.run_in_executor(None, part)
 
@@ -245,8 +248,10 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
                                 [week_number, date, interaction.user.display_name, timer, vod],
                                 value_input_option="USER_ENTERED")
         await self.bot.loop.run_in_executor(None, part)
+        seed_data = await seed_task
 
-        return await interaction.followup.send(content='Submission successful!')
+        message = f"Submission successful! You can view this week's spoiler [here]({seed_data['spoiler_url']})"
+        return await interaction.followup.send(content=message)
 
     @league.command(name='seed')
     async def league_seed(self, interaction: discord.Interaction):
@@ -258,6 +263,16 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
             interaction (discord.Interaction): discord interaction object
         """
         await interaction.response.defer(ephemeral=True)
+        seed_data = await self._league_seed()
+        return await interaction.followup.send(content=f"`{seed_data['seed_header']}`", files=seed_data['seed_files'])
+
+    async def _league_seed(self):
+        """
+        Generate the current week seed name and params and returns the corresponding seed data.
+
+        Returns:
+            dict: seed data
+        """
         week_number = get_week_number()
         random.seed(week_number)
         seed_name = str(random.randint(1, 10**9))
@@ -267,33 +282,7 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
             seed_settings = await _wrap_query(connection.fetchall, query, week_number)
             variations = (s['value'] for s in seed_settings if s['name'].startswith('variation'))
             seed_settings = {s['name']: s['value'] for s in seed_settings if not s['name'].startswith('variation')}
-            message, files = await self._get_seed_message(seed_name=seed_name, **seed_settings,
-                                                          variations=variations)
-            return await interaction.followup.send(content=message, files=files)
-
-    async def _get_seed_message(self, seed_name: str = None, logic_mode: str = None, key_mode: str = None,
-                                goal_mode: str = None, spawn: str = None, variations: tuple = (),
-                                item_pool: str = None, relic_count: int = None):
-        """Return the seed data in a formatted message
-
-        Args:
-            seed_name (str, optional): Seed name. Defaults to None.
-            logic_mode (str, optional): Randomizer logic mode. Defaults to None.
-            key_mode (str, optional): Randomizer key mode. Defaults to None.
-            goal_mode (str, optional): Randomizer goal mode. Defaults to None.
-            spawn (str, optional): Randomizer spawn location. Defaults to None.
-            variations (List[str], optional): Randomizer extra variations. Defaults to None.
-            item_pool (str, optional): Randomizer item pool. Defaults to None.
-            relic_count (int, optional): Randomizer relic count (World Tour only). Defaults to None.
-
-        Returns:
-            message: (str): The content of the message
-            files: (List[discord.File]) The to be attached to the message
-        """
-        seed_data = await self.api_client.get_seed(seed_name=seed_name, logic_mode=logic_mode, key_mode=key_mode,
-                                                   goal_mode=goal_mode, spawn=spawn, variations=variations,
-                                                   item_pool=item_pool, relic_count=relic_count)
-        return f"`{seed_data['seed_header']}`", seed_data['seed_files']
+            return await self.api_client.get_seed(seed_name=seed_name, **seed_settings, variations=variations)
 
     @league_seed.error
     async def seed_error(self, interaction: discord.Interaction, error: app_commands.errors.AppCommandError):
