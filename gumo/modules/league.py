@@ -16,13 +16,13 @@ import os
 import random
 import re
 from typing import Optional
+import zoneinfo
 
 import discord
 from discord import app_commands
 from discord.ext import commands
 
 import asqlite
-import pytz
 import gspread
 from google.oauth2 import service_account
 
@@ -32,6 +32,8 @@ from gumo.api import models
 logger = logging.getLogger(__name__)
 
 DB_FILE = os.getenv('GUMO_BOT_DB_FILE')
+
+EASTERN_TZ = zoneinfo.ZoneInfo('US/Eastern')
 
 
 class BadTimeArgumentFormat(app_commands.AppCommandError):
@@ -75,8 +77,7 @@ def get_week_number():
     Returns:
         int: current week number
     """
-    return (pytz.UTC.localize(datetime.utcnow()).astimezone(pytz.timezone('US/Eastern')) +
-            timedelta(days=2, hours=3)).isocalendar().week
+    return (datetime.now(EASTERN_TZ) + timedelta(days=2, hours=3)).isocalendar().week
 
 async def _wrap_query(method, query, *params):
     """Wrap database query execution to log
@@ -240,8 +241,7 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         tab = await self.bot.loop.run_in_executor(None, part)
         records = await self.bot.loop.run_in_executor(None, tab.get_all_records)
 
-        now = pytz.UTC.localize(datetime.utcnow()).astimezone(pytz.timezone('US/Eastern'))
-        date = now.strftime("%Y-%m-%d %H:%M:%S")
+        date = datetime.now(EASTERN_TZ).strftime("%Y-%m-%d %H:%M:%S")
         week_number = get_week_number()
         timer = "DNF" if timer == "DNF" else "{:02}:{:02}:{:02}.{:03}".format(*timer)
         if any((x['Runner'] == interaction.user.display_name and x['Week Number'] == week_number) for x in records):
