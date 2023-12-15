@@ -10,7 +10,7 @@ Provide Ori and the Blind Forest rando league commands
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 import functools
 import os
 import random
@@ -20,7 +20,7 @@ import zoneinfo
 
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 import asqlite
 import gspread
@@ -108,11 +108,87 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
                 "https://www.googleapis.com/auth/drive",
             ]
         )
+        self.week_refresh.start()  # pylint: disable=no-member
+
     async def cog_app_command_error(self, interaction: discord.Interaction,
                                     error: app_commands.errors.AppCommandError):
         if isinstance(error, app_commands.errors.CheckFailure):
             return await interaction.response.send_message("You don't have the permissions to use this command",
                                                            ephemeral=True)
+
+    @tasks.loop(time=time(hour=21, minute=0, second=30, tzinfo=EASTERN_TZ))
+    async def week_refresh(self):
+        """Weekly task that auto DNF runners that haven't submitted in time"""
+
+        if not datetime.now(EASTERN_TZ).weekday() == 4:
+            return
+
+        week_number = get_week_number() - 1
+        runners = await self._get_runners()
+        submissions = await self._get_submissions(week_number)
+        missing_runners = set(runners) ^ set(submissions)
+        missing_submissions = [[week_number, "n/a", runner, "DNF", "n/a"] for runner in missing_runners]
+        await self._submit(*missing_submissions)
+        logger.info("Submitting missing submissions for week %s: %s", week_number, missing_submissions)
+
+    @week_refresh.before_loop
+    async def before_week_refresh(self):
+        """Wait for Bot to be ready before starting the tasks"""
+        await self.bot.wait_until_ready()
+
+    async def _get_spreadsheet(self):
+        """Retrieve the Rando League spreadsheet
+
+        Returns:
+            gspread.Spreadsheet: Rando League spreadsheet.
+        """
+        part = functools.partial(gspread.authorize, self.credentials)
+        client = await self.bot.loop.run_in_executor(None, part)
+        part = functools.partial(client.open, title="Ori Rando League Leaderboard")
+        return await self.bot.loop.run_in_executor(None, part)
+
+    async def _get_worksheet(self, name: str):
+        """Retrieve a Rando League worksheet
+
+        Returns:
+            gspread.Worksheet: Rando League worksheet.
+        """
+        spreadsheet = await self._get_spreadsheet()
+        part = functools.partial(spreadsheet.worksheet, name)
+        return await self.bot.loop.run_in_executor(None, part)
+
+    async def _get_runners(self):
+        """Retrieve Rando League runners
+
+        Returns:
+            list: Rando League runners.
+        """
+        worksheet = await self._get_worksheet("S2 Leaderboard")
+        part = functools.partial(worksheet.col_values, 1)
+        return (await self.bot.loop.run_in_executor(None, part))[2:]
+
+    async def _get_submissions(self, week_number: int):
+        """Retrieve Rando League submissions
+
+        Args:
+            week_number (int): The settings of the week to be wiped. Defaults to None.
+
+        Returns:
+            list: List of submissions
+        """
+        worksheet = await self._get_worksheet("S2 Raw Data")
+        records = await self.bot.loop.run_in_executor(None, worksheet.get_all_records)
+        return [r['Runner'] for r in records if r['Week Number'] == week_number]
+
+    async def _submit(self, *submissions):
+        """Sumbit a list of Rando League submissions
+
+        Args:
+            submissions (list): List of Rando League submissions to submit.
+        """
+        worksheet = await self._get_worksheet("S2 Raw Data")
+        part = functools.partial(worksheet.append_rows, submissions, value_input_option="USER_ENTERED")
+        await self.bot.loop.run_in_executor(None, part)
 
     league = app_commands.Group(name="league", description="BF Rando League commands")
 
@@ -231,26 +307,13 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
 
         seed_task = asyncio.create_task(self._league_seed())
 
-        part = functools.partial(gspread.authorize, self.credentials)
-        client = await self.bot.loop.run_in_executor(None, part)
-
-        part = functools.partial(client.open, title="Ori Rando League Leaderboard")
-        spreadsheet = await self.bot.loop.run_in_executor(None, part)
-
-        part = functools.partial(spreadsheet.worksheet, "S2 Raw Data")
-        tab = await self.bot.loop.run_in_executor(None, part)
-        records = await self.bot.loop.run_in_executor(None, tab.get_all_records)
-
         date = datetime.now(EASTERN_TZ).strftime("%Y-%m-%d %H:%M:%S")
         week_number = get_week_number()
         timer = "DNF" if timer == "DNF" else "{:02}:{:02}:{:02}.{:03}".format(*timer)
-        if any((x['Runner'] == interaction.user.display_name and x['Week Number'] == week_number) for x in records):
+        if interaction.user.display_name in await self._get_submissions(week_number):
             return await interaction.followup.send(content='You already have submitted this week!')
 
-        part = functools.partial(tab.append_row,
-                                [week_number, date, interaction.user.display_name, timer, vod],
-                                value_input_option="USER_ENTERED")
-        await self.bot.loop.run_in_executor(None, part)
+        await self._submit([week_number, date, interaction.user.display_name, timer, vod])
         seed_data = await seed_task
 
         message = f"Submission successful! You can view this week's spoiler [here]({seed_data['spoiler_url']})"
