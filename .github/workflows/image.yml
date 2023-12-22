@@ -1,0 +1,33 @@
+name: Build and Push image
+
+on:
+  push:
+    branches:
+      - master
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - uses: actions/checkout@master
+
+    - name: Log in to the Container registry
+      uses: docker/login-action@master
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build and push Docker images
+      uses: docker/build-push-action@master
+      with:
+        context: .
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/gumo:latest
