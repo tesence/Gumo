@@ -77,9 +77,7 @@ def get_week_number():
     Returns:
         int: current week number
     """
-    # XMAS HOTFIX
-    week_number = (datetime.now(EASTERN_TZ) + timedelta(days=2, hours=3)).isocalendar().week
-    return 52 if week_number == 1 else week_number
+    return (datetime.now(EASTERN_TZ) + timedelta(days=2, hours=3)).isocalendar().week
 
 async def _wrap_query(method, query, *params):
     """Wrap database query execution to log
