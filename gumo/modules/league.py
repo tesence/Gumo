@@ -163,7 +163,7 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         Returns:
             list: Rando League runners.
         """
-        worksheet = await self._get_worksheet("S2 Leaderboard")
+        worksheet = await self._get_worksheet("S3 Leaderboard")
         part = functools.partial(worksheet.col_values, 1)
         return (await self.bot.loop.run_in_executor(None, part))[2:]
 
@@ -176,7 +176,7 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         Returns:
             list: List of submissions
         """
-        worksheet = await self._get_worksheet("S2 Raw Data")
+        worksheet = await self._get_worksheet("S3 Raw Data")
         records = await self.bot.loop.run_in_executor(None, worksheet.get_all_records)
         return [r['Runner'] for r in records if r['Week Number'] == week_number]
 
@@ -186,7 +186,7 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         Args:
             submissions (list): List of Rando League submissions to submit.
         """
-        worksheet = await self._get_worksheet("S2 Raw Data")
+        worksheet = await self._get_worksheet("S3 Raw Data")
         part = functools.partial(worksheet.append_rows, submissions, value_input_option="USER_ENTERED")
         await self.bot.loop.run_in_executor(None, part)
 
