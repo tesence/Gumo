@@ -5,10 +5,8 @@ Provide Ori and the Blind Forest rando league commands
 - "/league set": Set rando league seeds settings (admin)
 - "/league submit": Submit a rando league result
 - "/league view": View rando league seeds settings (admin)
-
 """
 
-import asyncio
 import logging
 from datetime import datetime, time, timedelta
 import functools
@@ -99,6 +97,8 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
     def __init__(self, bot):
         self.bot = bot
         self.api_client = api.BFRandomizerApiClient()
+        self._seed_data = None
+        self._active_season_number = None
 
         self.credentials = service_account.Credentials.from_service_account_file(
             os.getenv("GUMO_BOT_GOOGLE_API_SA_FILE"),
@@ -108,7 +108,10 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
                 "https://www.googleapis.com/auth/drive",
             ]
         )
-        self.week_refresh.start()  # pylint: disable=no-member
+        self._week_refresh.start()  # pylint: disable=no-member
+
+    async def cog_load(self):
+        await self._refresh_cached_data()
 
     async def cog_app_command_error(self, interaction: discord.Interaction,
                                     error: app_commands.errors.AppCommandError):
@@ -117,7 +120,7 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
                                                            ephemeral=True)
 
     @tasks.loop(time=time(hour=21, minute=0, second=30, tzinfo=EASTERN_TZ))
-    async def week_refresh(self):
+    async def _week_refresh(self):
         """Weekly task that auto DNF runners that haven't submitted in time"""
 
         if not datetime.now(EASTERN_TZ).weekday() == 4:
@@ -131,10 +134,17 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         await self._submit(*missing_submissions)
         logger.info("Submitting missing submissions for week %s: %s", week_number, missing_submissions)
 
-    @week_refresh.before_loop
-    async def before_week_refresh(self):
-        """Wait for Bot to be ready before starting the tasks"""
-        await self.bot.wait_until_ready()
+        await self._refresh_cached_data()
+
+    async def _refresh_cached_data(self):
+        """Refresh all the cached data:
+           - Current week seed data
+           - Current season number
+        """
+        self._seed_data = await self._league_seed()
+        logger.info("Cached seed data refreshed: %s", self._seed_data['seed_header'])
+        self._active_season_number = await self._get_active_season_number()
+        logger.info("Cached active season number refreshed: %s", self._active_season_number)
 
     async def _get_spreadsheet(self):
         """Retrieve the Rando League spreadsheet
@@ -157,13 +167,24 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         part = functools.partial(spreadsheet.worksheet, name)
         return await self.bot.loop.run_in_executor(None, part)
 
+    async def _get_active_season_number(self):
+        """Retrieve the active season number
+
+        Returns:
+            int: active season number
+        """
+        worksheet_title_pattern = "^S([0-9]+) .*$"
+        worksheets = (await self._get_spreadsheet()).worksheets()
+        filtered_worksheet_titles = [wk.title for wk in worksheets if re.match(worksheet_title_pattern, wk.title)]
+        return int(re.search(worksheet_title_pattern, sorted(filtered_worksheet_titles)[-1]).group(1))
+
     async def _get_runners(self):
         """Retrieve Rando League runners
 
         Returns:
             list: Rando League runners.
         """
-        worksheet = await self._get_worksheet("S4 Leaderboard")
+        worksheet = await self._get_worksheet(f"S{self._active_season_number} Leaderboard")
         part = functools.partial(worksheet.col_values, 1)
         return (await self.bot.loop.run_in_executor(None, part))[2:]
 
@@ -176,7 +197,7 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         Returns:
             list: List of submissions
         """
-        worksheet = await self._get_worksheet("S4 Raw Data")
+        worksheet = await self._get_worksheet(f"S{self._active_season_number} Raw Data")
         records = await self.bot.loop.run_in_executor(None, worksheet.get_all_records)
         return [r['Runner'] for r in records if r['Week Number'] == week_number]
 
@@ -186,7 +207,7 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         Args:
             submissions (list): List of Rando League submissions to submit.
         """
-        worksheet = await self._get_worksheet("S4 Raw Data")
+        worksheet = await self._get_worksheet(f"S{self._active_season_number} Raw Data")
         part = functools.partial(worksheet.append_rows, submissions, value_input_option="USER_ENTERED")
         await self.bot.loop.run_in_executor(None, part)
 
@@ -305,8 +326,6 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         """
         await interaction.response.defer(ephemeral=True)
 
-        seed_task = asyncio.create_task(self._league_seed())
-
         date = datetime.now(EASTERN_TZ).strftime("%Y-%m-%d %H:%M:%S")
         week_number = get_week_number()
         timer = "DNF" if timer == "DNF" else "{:02}:{:02}:{:02}.{:03}".format(*timer)
@@ -314,9 +333,8 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
             return await interaction.followup.send(content='You already have submitted this week!')
 
         await self._submit([week_number, date, interaction.user.display_name, timer, vod])
-        seed_data = await seed_task
 
-        message = f"Submission successful! You can view this week's spoiler [here]({seed_data['spoiler_url']})"
+        message = f"Submission successful! You can view this week's spoiler [here]({self._seed_data['spoiler_url']})"
         return await interaction.followup.send(content=message)
 
     @league.command(name='seed')
@@ -329,8 +347,8 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
             interaction (discord.Interaction): discord interaction object
         """
         await interaction.response.defer(ephemeral=True)
-        seed_data = await self._league_seed()
-        return await interaction.followup.send(content=f"`{seed_data['seed_header']}`", files=seed_data['seed_files'])
+        return await interaction.followup.send(content=f"`{self._seed_data['seed_header']}`",
+                                               files=self._seed_data['seed_files'])
 
     async def _league_seed(self):
         """
