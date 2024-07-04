@@ -127,12 +127,15 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
             return
 
         week_number = get_week_number() - 1
-        runners = await self._get_runners()
         submissions = await self._get_submissions(week_number)
-        missing_runners = set(runners) ^ set(submissions)
-        missing_submissions = [[week_number, "n/a", runner, "DNF", "n/a"] for runner in missing_runners]
-        await self._submit(*missing_submissions)
-        logger.info("Submitting missing submissions for week %s: %s", week_number, missing_submissions)
+
+        # DNF runners only if there is at least one submission. If there is no submission, it means the season is over.
+        if submissions:
+            runners = await self._get_runners()
+            missing_runners = set(runners) ^ set(submissions)
+            missing_submissions = [[week_number, "n/a", runner, "DNF", "n/a"] for runner in missing_runners]
+            await self._submit(*missing_submissions)
+            logger.info("Submitting missing submissions for week %s: %s", week_number, missing_submissions)
 
         await self._refresh_cached_data()
 
