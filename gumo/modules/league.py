@@ -350,8 +350,8 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
             interaction (discord.Interaction): discord interaction object
         """
         await interaction.response.defer(ephemeral=True)
-        return await interaction.followup.send(content=f"`{self._seed_data['seed_header']}`",
-                                               files=self._seed_data['seed_files'])
+        seed_files = [discord.File(sd, filename='randomizer.dat') for sd in self._seed_data['seed_buffers']]
+        return await interaction.followup.send(content=f"`{self._seed_data['seed_header']}`", files=seed_files)
 
     async def _league_seed(self):
         """

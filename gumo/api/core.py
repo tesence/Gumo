@@ -125,5 +125,5 @@ class BFRandomizerApiClient:
             'spoiler_url': f"{SEEDGEN_API_URL}{seed_data['players'][0]['spoiler_url']}",
             'map_url': f"{SEEDGEN_API_URL}{seed_data['map_url']}",
             'history_url': f"{SEEDGEN_API_URL}{seed_data['history_url']}",
-            'seed_files': [discord.File(seed_buffer, filename='randomizer.dat')]
+            'seed_buffers': [seed_buffer]
         }
