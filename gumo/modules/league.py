@@ -10,6 +10,7 @@ Provide Ori and the Blind Forest rando league commands
 import logging
 from datetime import datetime, time, timedelta
 import functools
+import io
 import os
 import random
 import re
@@ -350,8 +351,9 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
             interaction (discord.Interaction): discord interaction object
         """
         await interaction.response.defer(ephemeral=True)
-        seed_files = [discord.File(sd, filename='randomizer.dat') for sd in self._seed_data['seed_buffers']]
-        return await interaction.followup.send(content=f"`{self._seed_data['seed_header']}`", files=seed_files)
+        seed_buffer = io.BytesIO(bytes(self._seed_data['seed_file_content'], encoding="utf8"))
+        seed_file = discord.File(seed_buffer, filename='randomizer.dat')
+        return await interaction.followup.send(content=f"`{self._seed_data['seed_header']}`", files=[seed_file])
 
     async def _league_seed(self):
         """

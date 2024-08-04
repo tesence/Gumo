@@ -4,6 +4,7 @@ Provide Ori and the Blind Forest seed generation commands:
 - "/daily": the default seed generation command, forcing the seed name to the current date YYYY-MM-DD.
 """
 
+import io
 import logging
 from datetime import datetime
 from typing import Optional
@@ -76,8 +77,8 @@ class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
         await interaction.response.defer()
         seed_settings = {s[0]: s[1] for s in interaction.namespace if not s[0].startswith('variation')}
         variations = (s[1] for s in interaction.namespace if s[0].startswith('variation'))
-        message, files = await self._get_seed_message(**seed_settings, variations=variations)
-        return await interaction.followup.send(content=message, files=files)
+        message, file = await self._get_seed_message(**seed_settings, variations=variations)
+        return await interaction.followup.send(content=message, files=[file])
 
     @app_commands.command(name='daily')
     @app_commands.describe(logic_mode="Randomizer logic mode")
@@ -153,12 +154,13 @@ class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
         seed_data = await self.api_client.get_seed(seed_name=seed_name, logic_mode=logic_mode, key_mode=key_mode,
                                                    goal_mode=goal_mode, spawn=spawn, variations=variations,
                                                    item_pool=item_pool, relic_count=relic_count)
-        seed_files = [discord.File(sd, filename='randomizer.dat') for sd in seed_data['seed_buffers']]
+        seed_buffer = io.BytesIO(bytes(seed_data['seed_file_content'], encoding="utf8"))
+        seed_file = discord.File(seed_buffer, filename='randomizer.dat')
         message = f"`{seed_data['seed_header']}`\n" \
                   f"**Spoiler**: [link]({seed_data['spoiler_url']})\n" \
                   f"**Map**: [link]({seed_data['map_url']})\n" \
                   f"**History**: [link]({seed_data['history_url']})"
-        return message, seed_files
+        return message, seed_file
 
     @seed.error
     @daily.error

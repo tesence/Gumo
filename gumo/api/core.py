@@ -2,7 +2,6 @@
 Define a client to interact with the Ori and the Blind Forest Randomizer API
 """
 
-import io
 import logging
 from urllib import parse
 import random
@@ -119,11 +118,10 @@ class BFRandomizerApiClient:
         seed_data = await self._get_seed_data(seed_name=seed_name, logic_mode=logic_mode, key_mode=key_mode,
                                               goal_mode=goal_mode, spawn=spawn, variations=variations,
                                               item_pool=item_pool, relic_count=relic_count)
-        seed_buffer = io.BytesIO(bytes(seed_data['players'][0]['seed'], encoding="utf8"))
         return {
             'seed_header': seed_data['players'][0]['seed'].split("\n")[0],
             'spoiler_url': f"{SEEDGEN_API_URL}{seed_data['players'][0]['spoiler_url']}",
             'map_url': f"{SEEDGEN_API_URL}{seed_data['map_url']}",
             'history_url': f"{SEEDGEN_API_URL}{seed_data['history_url']}",
-            'seed_buffers': [seed_buffer]
+            'seed_file_content': seed_data['players'][0]['seed']
         }
