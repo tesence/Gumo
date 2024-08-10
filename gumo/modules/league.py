@@ -188,7 +188,7 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         Returns:
             list: Rando League runners.
         """
-        worksheet = await self._get_worksheet(f"S{self._active_season_number} Leaderboard")
+        worksheet = await self._get_worksheet(f"S{self._active_season_number} Scores")
         part = functools.partial(worksheet.col_values, 1)
         return (await self.bot.loop.run_in_executor(None, part))[2:]
 
