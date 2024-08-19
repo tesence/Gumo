@@ -22,6 +22,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 import asqlite
+from dateutil import parser
 import gspread
 from google.oauth2 import service_account
 
@@ -55,6 +56,11 @@ class TimeFormatTransformer(app_commands.Transformer):
             return tuple(map(int, (hours, minutes, seconds, milliseconds)))
         raise BadTimeArgumentFormat()
 
+class DateTransformer(app_commands.Transformer):
+
+    async def transform(self, interaction: discord.Interaction, value: str):
+        return parser.parse(value)
+
 async def is_league_admin_check(interaction: discord.Interaction):
     """Rando league administrator checks
 
@@ -77,6 +83,14 @@ def get_week_number():
         int: current week number
     """
     return (datetime.now(EASTERN_TZ) + timedelta(days=2, hours=3)).isocalendar().week
+
+def get_current_week_start_date():
+    return get_week_start_date(datetime.now(EASTERN_TZ))
+
+def get_week_start_date(date):
+    now = date - timedelta(hours=21)
+    last_friday = now - timedelta(days=(now.weekday() - 4 + 7) % 7)
+    return last_friday.strftime('%Y-%m-%d')
 
 async def _wrap_query(method, query, *params):
     """Wrap database query execution to log
@@ -120,23 +134,23 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
             return await interaction.response.send_message("You don't have the permissions to use this command",
                                                            ephemeral=True)
 
-    @tasks.loop(time=time(hour=21, minute=0, second=30, tzinfo=EASTERN_TZ))
+    @tasks.loop(time=time(hour=20, minute=59, second=30, tzinfo=EASTERN_TZ))
     async def _week_refresh(self):
         """Weekly task that auto DNF runners that haven't submitted in time"""
 
         if not datetime.now(EASTERN_TZ).weekday() == 4:
             return
 
-        week_number = get_week_number() - 1
-        submissions = await self._get_submissions(week_number)
+        week_start_date = get_current_week_start_date()
+        submissions = await self._get_submissions(week_start_date)
 
         # DNF runners only if there is at least one submission. If there is no submission, it means the season is over.
         if submissions:
             runners = await self._get_runners()
             missing_runners = set(runners) ^ set(submissions)
-            missing_submissions = [[week_number, "n/a", runner, "DNF", "n/a"] for runner in missing_runners]
+            missing_submissions = [[week_start_date, "n/a", runner, "DNF", "n/a"] for runner in missing_runners]
             await self._submit(*missing_submissions)
-            logger.info("Submitting missing submissions for week %s: %s", week_number, missing_submissions)
+            logger.info("Submitting missing submissions for week %s: %s", week_start_date, missing_submissions)
 
         await self._refresh_cached_data()
 
@@ -192,18 +206,18 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         part = functools.partial(worksheet.col_values, 1)
         return (await self.bot.loop.run_in_executor(None, part))[2:]
 
-    async def _get_submissions(self, week_number: int):
+    async def _get_submissions(self, date: datetime):
         """Retrieve Rando League submissions
 
         Args:
-            week_number (int): The settings of the week to be wiped. Defaults to None.
+            date (date): The settings of the week to be wiped. Defaults to None.
 
         Returns:
             list: List of submissions
         """
         worksheet = await self._get_worksheet(f"S{self._active_season_number} Raw Data")
         records = await self.bot.loop.run_in_executor(None, worksheet.get_all_records)
-        return [r['Runner'] for r in records if r['Week Number'] == week_number]
+        return [r['Runner'] for r in records if r['Week'] == date]
 
     async def _submit(self, *submissions):
         """Sumbit a list of Rando League submissions
@@ -235,7 +249,7 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
     @app_commands.describe(item_pool="Randomizer item pool")
     @app_commands.choices(item_pool=models.ITEM_POOL_CHOICES)
     @app_commands.describe(relic_count="(World Tour only) The number of relics to place in the seed")
-    @app_commands.describe(week_number="The settings of the week to be set")
+    @app_commands.describe(date="The settings of the week to be set")
     @app_commands.check(is_league_admin_check)
     # pylint: disable=unused-argument
     async def league_set(self, interaction: discord.Interaction,
@@ -248,7 +262,7 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
                          variation3: Optional[app_commands.Choice[str]] = None,
                          item_pool: Optional[app_commands.Choice[str]] = None,
                          relic_count: Optional[app_commands.Range[int, 1, 11]] = None,
-                         week_number: Optional[app_commands.Range[int, 1, 52]] = None):
+                         date: app_commands.Transform[datetime, DateTransformer] = None):
         """
         Set league settings for a given week
 
@@ -264,57 +278,59 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
             variation3 (Optional[app_commands.Choice[str]], optional): Randomizer extra variation. Defaults to None.
             item_pool (app_commands.Choice[str], optional): Randomizer item pool. Defaults to None.
             relic_count (int, optional): Randomizer relic count (World Tour only). Defaults to None.
-            week_number (int, optional): The settings of the week to be wiped. Defaults to None.
+            week_start_date (datetime, optional): The settings of the week to be wiped. Defaults to None.
         """
-        week_number = week_number or get_week_number()
+        week_start_date = get_week_start_date(date) if date else get_current_week_start_date()
         async with asqlite.connect(DB_FILE) as connection:
-            settings = [(week_number, *s) for s in interaction.namespace if not s[0] == "week_number"]
-            query = "INSERT INTO league_settings VALUES (?, ?, ?) " \
-                    "ON CONFLICT(week_number, name) DO UPDATE SET value = excluded.value " \
-                    "ON CONFLICT(week_number, value) DO NOTHING;"
+            settings = [(week_start_date, *s) for s in interaction.namespace if not s[0] == "week_start_date"]
+            query = "INSERT INTO league_settings (date, name, value) VALUES (?, ?, ?) " \
+                    "ON CONFLICT(date, name) DO UPDATE SET value = excluded.value " \
+                    "ON CONFLICT(date, value) DO NOTHING;"
             await _wrap_query(connection.executemany, query, settings)
-            message = f"League settings for week {week_number} have successfully been updated!"
-            return await interaction.response.send_message(content=message, ephemeral=True)
+            message = f"League settings for week {week_start_date} have successfully been updated!"
+            await interaction.response.send_message(content=message, ephemeral=True)
+        if week_start_date == get_current_week_start_date(): await self._refresh_cached_data()
 
     @league.command(name='view')
-    @app_commands.describe(week_number="The settings of the week to be set")
+    @app_commands.describe(date="The settings of the week to be set")
     @app_commands.check(is_league_admin_check)
     async def league_view(self, interaction: discord.Interaction,
-                          week_number:  Optional[app_commands.Range[int, 1, 52]] = None):
+                          date: app_commands.Transform[datetime, DateTransformer] = None):
         """View rando league settings
 
         Args:
             interaction (discord.Interaction): discord interaction object
-            week_number (int, optional): The settings of the week to be wiped. Defaults to None.
+            week_start_date (datetime, optional): The settings of the week to be wiped. Defaults to None.
         """
-        week_number = week_number or get_week_number()
+        week_start_date = get_week_start_date(date) if date else get_current_week_start_date()
         async with asqlite.connect(DB_FILE) as connection:
-            query = "SELECT * FROM league_settings WHERE week_number = ?;"
-            league_settings = await _wrap_query(connection.fetchall, query, week_number)
+            query = "SELECT * FROM league_settings WHERE date = ?;"
+            league_settings = await _wrap_query(connection.fetchall, query, week_start_date)
             if not league_settings:
-                message = f"No settings set for week {week_number}"
+                message = f"No settings set for week {week_start_date}"
                 return await interaction.response.send_message(content=message, ephemeral=True)
             output = "\n".join([f"{ls['name'].ljust(15)}: {ls['value']}" for ls in league_settings])
-            message = f"League settings for week {week_number}\n```{output}```"
-            return await interaction.response.send_message(content=message, ephemeral=True)
+            message = f"League settings for week {week_start_date}\n```{output}```"
+            await interaction.response.send_message(content=message, ephemeral=True)
 
     @league.command(name='clear')
-    @app_commands.describe(week_number="The settings of the week to be wiped")
+    @app_commands.describe(date="The settings of the week to be wiped")
     @app_commands.check(is_league_admin_check)
     async def league_clear(self, interaction: discord.Interaction,
-                           week_number:  Optional[app_commands.Range[int, 1, 52]] = None):
+                           date: app_commands.Transform[datetime, DateTransformer] = None):
         """Clear rando league settings
 
         Args:
             interaction (discord.Interaction): discord interaction object
-            week_number (int, optional): The settings of the week to be wiped. Defaults to None.
+            week_start_date (datetime, optional): The settings of the week to be wiped. Defaults to None.
         """
-        week_number = week_number or get_week_number()
+        week_start_date = get_week_start_date(date) if date else get_current_week_start_date()
         async with asqlite.connect(DB_FILE) as connection:
-            query = "DELETE FROM league_settings WHERE week_number = ?;"
-            await _wrap_query(connection.execute, query, week_number)
-            message = f"League settings for week {week_number} have been cleared"
-            return await interaction.response.send_message(content=message, ephemeral=True)
+            query = "DELETE FROM league_settings WHERE date = ?;"
+            await _wrap_query(connection.execute, query, week_start_date)
+            message = f"League settings for week {week_start_date} have been cleared"
+            await interaction.response.send_message(content=message, ephemeral=True)
+        if week_start_date == get_current_week_start_date(): await self._refresh_cached_data()
 
     @league.command(name='submit')
     @app_commands.describe(timer="The LiveSplit time (e.g: \"40:43\", \"1:40:43\" or \"1:40:43.630\")")
@@ -331,15 +347,15 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         await interaction.response.defer(ephemeral=True)
 
         date = datetime.now(EASTERN_TZ).strftime("%Y-%m-%d %H:%M:%S")
-        week_number = get_week_number()
+        week_start_date = get_current_week_start_date()
         timer = "DNF" if timer == "DNF" else "{:02}:{:02}:{:02}.{:03}".format(*timer)
-        if interaction.user.display_name in await self._get_submissions(week_number):
+        if interaction.user.display_name in await self._get_submissions(week_start_date):
             return await interaction.followup.send(content='You already have submitted this week!')
 
-        await self._submit([week_number, date, interaction.user.display_name, timer, vod])
+        await self._submit([week_start_date, date, interaction.user.display_name, timer, vod])
 
         message = f"Submission successful! You can view this week's spoiler [here]({self._seed_data['spoiler_url']})"
-        return await interaction.followup.send(content=message)
+        await interaction.followup.send(content=message)
 
     @league.command(name='seed')
     async def league_seed(self, interaction: discord.Interaction):
@@ -362,13 +378,13 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         Returns:
             dict: seed data
         """
-        week_number = get_week_number()
-        random.seed(week_number)
+        week_start_date = get_current_week_start_date()
+        random.seed(week_start_date)
         seed_name = str(random.randint(1, 10**9))
         random.seed(None)
         async with asqlite.connect(DB_FILE) as connection:
-            query = "SELECT * FROM league_settings WHERE week_number = ?;"
-            seed_settings = await _wrap_query(connection.fetchall, query, week_number)
+            query = "SELECT * FROM league_settings WHERE date = ?;"
+            seed_settings = await _wrap_query(connection.fetchall, query, week_start_date)
             variations = (s['value'] for s in seed_settings if s['name'].startswith('variation'))
             seed_settings = {s['name']: s['value'] for s in seed_settings if not s['name'].startswith('variation')}
             return await self.api_client.get_seed(seed_name=seed_name, **seed_settings, variations=variations)
