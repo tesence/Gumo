@@ -31,3 +31,14 @@ jobs:
         context: .
         push: true
         tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/gumo:latest
+
+    - name: Deploy new image
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USER }}
+        port: ${{ secrets.SSH_PORT }}
+        key: ${{ secrets.SSH_KEY }}
+        script: |
+            docker compose --file ${{ secrets.DOCKER_COMPOSE_FILE }} down --rmi all gumo
+            docker compose --file ${{ secrets.DOCKER_COMPOSE_FILE }} up -d --force-recreate gumo
