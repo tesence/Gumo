@@ -129,8 +129,8 @@ class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
         seed_name = datetime.now(zoneinfo.ZoneInfo('US/Pacific')).strftime("%Y-%m-%d")
         seed_settings = {s[0]: s[1] for s in interaction.namespace if not s[0].startswith('variation')}
         variations = (s[1] for s in interaction.namespace if s[0].startswith('variation'))
-        message, files = await self._get_seed_message(seed_name=seed_name, **seed_settings, variations=variations)
-        return await interaction.followup.send(content=message, files=files)
+        message, file = await self._get_seed_message(seed_name=seed_name, **seed_settings, variations=variations)
+        return await interaction.followup.send(content=message, files=[file])
 
     async def _get_seed_message(self, seed_name: str = None, logic_mode: str = None, key_mode: str = None,
                                 goal_mode: str = None, spawn: str = None, variations: tuple = (),
