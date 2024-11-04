@@ -57,7 +57,9 @@ class TimeFormatTransformer(app_commands.Transformer):
         raise BadTimeArgumentFormat()
 
 class DateTransformer(app_commands.Transformer):
+    """Date format transformer"""
 
+    # pylint: disable=arguments-differ
     async def transform(self, interaction: discord.Interaction, value: str):
         return parser.parse(value)
 
@@ -76,18 +78,20 @@ async def is_league_admin_check(interaction: discord.Interaction):
                  "allowed" if allowed else "denied")
     return allowed
 
-def get_week_number():
-    """Returns the current week number (Week starts at 9PM EST)
+def get_current_week_start_date():
+    """Return the date when the current league week started (previous friday)
 
     Returns:
-        int: current week number
+        date: Friday of the current week
     """
-    return (datetime.now(EASTERN_TZ) + timedelta(days=2, hours=3)).isocalendar().week
-
-def get_current_week_start_date():
     return get_week_start_date(datetime.now(EASTERN_TZ))
 
 def get_week_start_date(date):
+    """Return the date when the given league week started (previous friday)
+
+    Returns:
+        date: Friday of the current week
+    """
     now = date - timedelta(hours=21)
     last_friday = now - timedelta(days=(now.weekday() - 4 + 7) % 7)
     return last_friday.strftime('%Y-%m-%d')
@@ -289,7 +293,9 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
             await _wrap_query(connection.executemany, query, settings)
             message = f"League settings for week {week_start_date} have successfully been updated!"
             await interaction.response.send_message(content=message, ephemeral=True)
-        if week_start_date == get_current_week_start_date(): await self._refresh_cached_data()
+
+        if week_start_date == get_current_week_start_date():
+            await self._refresh_cached_data()
 
     @league.command(name='view')
     @app_commands.describe(date="The settings of the week to be set")
@@ -330,7 +336,9 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
             await _wrap_query(connection.execute, query, week_start_date)
             message = f"League settings for week {week_start_date} have been cleared"
             await interaction.response.send_message(content=message, ephemeral=True)
-        if week_start_date == get_current_week_start_date(): await self._refresh_cached_data()
+
+        if week_start_date == get_current_week_start_date():
+            await self._refresh_cached_data()
 
     @league.command(name='submit')
     @app_commands.describe(timer="The LiveSplit time (e.g: \"40:43\", \"1:40:43\" or \"1:40:43.630\")")

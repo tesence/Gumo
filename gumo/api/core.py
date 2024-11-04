@@ -6,8 +6,6 @@ import logging
 from urllib import parse
 import random
 
-import discord
-
 import aiohttp
 
 from gumo.api import models
