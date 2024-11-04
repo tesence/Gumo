@@ -138,14 +138,16 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
             return await interaction.response.send_message("You don't have the permissions to use this command",
                                                            ephemeral=True)
 
-    @tasks.loop(time=time(hour=20, minute=59, second=30, tzinfo=EASTERN_TZ))
+    @tasks.loop(time=time(hour=21, minute=0, second=5, tzinfo=EASTERN_TZ))
     async def _week_refresh(self):
         """Weekly task that auto DNF runners that haven't submitted in time"""
 
-        if not datetime.now(EASTERN_TZ).weekday() == 4:
+        date = datetime.now(EASTERN_TZ)
+
+        if not date.weekday() == 4:
             return
 
-        week_start_date = get_current_week_start_date()
+        week_start_date = get_week_start_date(date - timedelta(hours=1))
         submissions = await self._get_submissions(week_start_date)
 
         # DNF runners only if there is at least one submission. If there is no submission, it means the season is over.
