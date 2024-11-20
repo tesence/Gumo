@@ -99,3 +99,28 @@ SPAWN_CHOICES = [app_commands.Choice(name=name, value=name) for name, value in S
 VARIATION_CHOICES = [app_commands.Choice(name=name, value=name) for name, value in VARIATIONS.items()]
 LOGIC_PATH_CHOICES = [app_commands.Choice(name=name, value=name) for name, value in LOGIC_PATHS.items()]
 ITEM_POOL_CHOICES = [app_commands.Choice(name=name, value=name) for name, value in ITEM_POOLS.items()]
+
+def add_seed_options(func):
+    """Set all the common options for seed commands
+
+    Args:
+        func (function): Command definition
+    """
+    func = app_commands.describe(logic_mode="Randomizer logic mode")(func)
+    func = app_commands.choices(logic_mode=LOGIC_MODE_CHOICES)(func)
+    func = app_commands.describe(key_mode="Randomizer key mode")(func)
+    func = app_commands.choices(key_mode=KEY_MODE_CHOICES)(func)
+    func = app_commands.describe(goal_mode="Randomizer goal mode")(func)
+    func = app_commands.choices(goal_mode=GOAL_MODE_CHOICES)(func)
+    func = app_commands.describe(spawn="The location where the player starts in the seed")(func)
+    func = app_commands.choices(spawn=SPAWN_CHOICES)(func)
+    func = app_commands.describe(variation1="Extra randomizer variation")(func)
+    func = app_commands.choices(variation1=VARIATION_CHOICES)(func)
+    func = app_commands.describe(variation2="Extra randomizer variation")(func)
+    func = app_commands.choices(variation2=VARIATION_CHOICES)(func)
+    func = app_commands.describe(variation3="Extra randomizer variation")(func)
+    func = app_commands.choices(variation3=VARIATION_CHOICES)(func)
+    func = app_commands.describe(item_pool="Randomizer item pool")(func)
+    func = app_commands.choices(item_pool=ITEM_POOL_CHOICES)(func)
+    func = app_commands.describe(relic_count="(World Tour only) The number of relics to place in the seed")(func)
+    return func

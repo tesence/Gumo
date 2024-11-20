@@ -19,7 +19,6 @@ from gumo.api import models
 
 logger = logging.getLogger(__name__)
 
-
 class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
     """Custom Cog"""
 
@@ -29,23 +28,7 @@ class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
 
     @app_commands.command(name='seed')
     @app_commands.describe(seed_name="A string to be used as seed")
-    @app_commands.describe(logic_mode="Randomizer logic mode")
-    @app_commands.choices(logic_mode=models.LOGIC_MODE_CHOICES)
-    @app_commands.describe(key_mode="Randomizer key mode")
-    @app_commands.choices(key_mode=models.KEY_MODE_CHOICES)
-    @app_commands.describe(goal_mode="Randomizer goal mode")
-    @app_commands.choices(goal_mode=models.GOAL_MODE_CHOICES)
-    @app_commands.describe(spawn="The location where the player starts in the seed")
-    @app_commands.choices(spawn=models.SPAWN_CHOICES)
-    @app_commands.describe(variation1="Extra randomizer variation")
-    @app_commands.choices(variation1=models.VARIATION_CHOICES)
-    @app_commands.describe(variation2="Extra randomizer variation")
-    @app_commands.choices(variation2=models.VARIATION_CHOICES)
-    @app_commands.describe(variation3="Extra randomizer variation")
-    @app_commands.choices(variation3=models.VARIATION_CHOICES)
-    @app_commands.describe(item_pool="Randomizer item pool")
-    @app_commands.choices(item_pool=models.ITEM_POOL_CHOICES)
-    @app_commands.describe(relic_count="(World Tour only) The number of relics to place in the seed")
+    @models.add_seed_options
     # pylint: disable=unused-argument
     async def seed(self, interaction: discord.Interaction,
                    seed_name: Optional[str] = None,
@@ -81,23 +64,7 @@ class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
         return await interaction.followup.send(content=message, files=[file])
 
     @app_commands.command(name='daily')
-    @app_commands.describe(logic_mode="Randomizer logic mode")
-    @app_commands.choices(logic_mode=models.LOGIC_MODE_CHOICES)
-    @app_commands.describe(key_mode="Randomizer key mode")
-    @app_commands.choices(key_mode=models.KEY_MODE_CHOICES)
-    @app_commands.describe(goal_mode="Randomizer goal mode")
-    @app_commands.choices(goal_mode=models.GOAL_MODE_CHOICES)
-    @app_commands.describe(spawn="Start location")
-    @app_commands.choices(spawn=models.SPAWN_CHOICES)
-    @app_commands.describe(variation1="Extra randomizer variation")
-    @app_commands.choices(variation1=models.VARIATION_CHOICES)
-    @app_commands.describe(variation2="Extra randomizer variation")
-    @app_commands.choices(variation2=models.VARIATION_CHOICES)
-    @app_commands.describe(variation3="Extra randomizer variation")
-    @app_commands.choices(variation3=models.VARIATION_CHOICES)
-    @app_commands.describe(item_pool="Randomizer item pool")
-    @app_commands.choices(item_pool=models.ITEM_POOL_CHOICES)
-    @app_commands.describe(relic_count="(World Tour only) The number of relics to place in the seed")
+    @models.add_seed_options
     # pylint: disable=unused-argument
     async def daily(self, interaction: discord.Interaction,
                     logic_mode: Optional[app_commands.Choice[str]] = None,
