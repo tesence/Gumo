@@ -272,7 +272,7 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         """
         week_start_date = get_week_start_date(date) if date else get_current_week_start_date()
         async with asqlite.connect(DB_FILE) as connection:
-            settings = [(week_start_date, *s) for s in interaction.namespace if not s[0] == "week_start_date"]
+            settings = [(week_start_date, *s) for s in interaction.namespace if not s[0] == "date"]
             query = "INSERT INTO league_settings (date, name, value) VALUES (?, ?, ?) " \
                     "ON CONFLICT(date, name) DO UPDATE SET value = excluded.value " \
                     "ON CONFLICT(date, value) DO NOTHING;"
