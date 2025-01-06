@@ -84,7 +84,7 @@ def get_current_week_start_date():
     Returns:
         date: Friday of the current week
     """
-    return get_week_start_date(datetime.now(EASTERN_TZ))
+    return get_week_start_date(datetime.now(EASTERN_TZ) - timedelta(hours=21))
 
 def get_week_start_date(date):
     """Return the date when the given league week started (previous friday)
@@ -92,8 +92,7 @@ def get_week_start_date(date):
     Returns:
         date: Friday of the current week
     """
-    now = date - timedelta(hours=21)
-    last_friday = now - timedelta(days=(now.weekday() - 4 + 7) % 7)
+    last_friday = date - timedelta(days=(date.weekday() - 4 + 7) % 7)
     return last_friday.strftime('%Y-%m-%d')
 
 async def _wrap_query(method, query, *params):
