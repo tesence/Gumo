@@ -61,7 +61,7 @@ class DateTransformer(app_commands.Transformer):
 
     # pylint: disable=arguments-differ
     async def transform(self, interaction: discord.Interaction, value: str):
-        return parser.parse(value)
+        return parser.parse(value).replace(hour=21, minute=0, second=0)
 
 async def is_league_admin_check(interaction: discord.Interaction):
     """Rando league administrator checks
@@ -84,7 +84,7 @@ def get_current_week_start_date():
     Returns:
         date: Friday of the current week
     """
-    return get_week_start_date(datetime.now(EASTERN_TZ) - timedelta(hours=21))
+    return get_week_start_date(datetime.now(EASTERN_TZ))
 
 def get_week_start_date(date):
     """Return the date when the given league week started (previous friday)
@@ -92,6 +92,7 @@ def get_week_start_date(date):
     Returns:
         date: Friday of the current week
     """
+    date = date - timedelta(hours=21)
     last_friday = date - timedelta(days=(date.weekday() - 4 + 7) % 7)
     return last_friday.strftime('%Y-%m-%d')
 
