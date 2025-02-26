@@ -197,10 +197,8 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         Returns:
             int: active season number
         """
-        worksheet_title_pattern = "^S([0-9]+) .*$"
         worksheets = (await self._get_spreadsheet()).worksheets()
-        filtered_worksheet_titles = [wk.title for wk in worksheets if re.match(worksheet_title_pattern, wk.title)]
-        return int(re.search(worksheet_title_pattern, sorted(filtered_worksheet_titles)[-1]).group(1))
+        return int(worksheets[0].title[1])
 
     async def _get_runners(self):
         """Retrieve Rando League runners
