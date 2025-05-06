@@ -54,7 +54,8 @@ VARIATIONS = {
     'Skip Final Escape': "GoalModeFinish",
     'Wall Starved': "WallStarved",
     'Grenade Starved': "GrenadeStarved",
-    'In-Logic Warps': "InLogicWarps"
+    'In-Logic Warps': "InLogicWarps",
+    'Keysanity': "Keysanity"
 }
 
 LOGIC_PATHS = {
