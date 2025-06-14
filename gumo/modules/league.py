@@ -176,13 +176,16 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         timestamp = int(deadline.timestamp())
 
         missing_members = [
-           discord.utils.find(lambda m, r=runner: m.display_name == r, self.bot.get_guild(ORI_GUID_ID).members).mention
-           for runner in sorted(missing_runners)
+           discord.utils.get(self.bot.get_guild(ORI_GUID_ID).members, display_name=runner).mention
+           for runner in sorted(missing_runners, key=lambda r:r.lower())
         ]
 
         reminder =   "## Reminder of the week\n\n"
         reminder += f"Remaining players: {', '.join(missing_members)}\n"
         reminder += f"### You have time to submit until <t:{timestamp}:f>"
+
+        # app_info = await self.bot.application_info()
+        # await app_info.owner.send(reminder)
 
         await self.bot.get_channel(ORI_RANDO_LEAGUE_CHANNEL_ID).send(reminder)
 
