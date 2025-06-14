@@ -7,6 +7,7 @@ Provide Ori and the Blind Forest rando league commands
 - "/league view": View rando league seeds settings (admin)
 """
 
+import asyncio
 import logging
 from datetime import datetime, time, timedelta
 import functools
@@ -34,6 +35,9 @@ logger = logging.getLogger(__name__)
 DB_FILE = os.getenv('GUMO_BOT_DB_FILE')
 
 EASTERN_TZ = zoneinfo.ZoneInfo('US/Eastern')
+
+ORI_GUID_ID = 116250700685508615
+ORI_RANDO_LEAGUE_CHANNEL_ID = 1362090460423913522
 
 
 class BadTimeArgumentFormat(app_commands.AppCommandError):
@@ -127,7 +131,9 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
                 "https://www.googleapis.com/auth/drive",
             ]
         )
+        self.ready = asyncio.Event()
         self._week_refresh.start()  # pylint: disable=no-member
+        self._reminder.start()  # pylint: disable=no-member
 
     async def cog_load(self):
         await self._refresh_cached_data()
@@ -138,7 +144,49 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
             return await interaction.response.send_message("You don't have the permissions to use this command",
                                                            ephemeral=True)
 
-    @tasks.loop(time=time(hour=21, minute=0, second=5, tzinfo=EASTERN_TZ))
+    @tasks.loop(time=time(hour=21, minute=0, second=0, tzinfo=EASTERN_TZ))
+    async def _reminder(self):
+        """Remind players who haven't submitted 24h before the end of the week
+
+        Args:
+            week_start_date (datetime): Date of the start of the week
+            submissions (list): List of submissions for the given week
+        """
+
+        date = datetime.now(EASTERN_TZ)
+
+        if not date.weekday() == 3:
+            return
+
+        week_start_date = get_week_start_date(date)
+
+        await self.ready.wait()
+        submissions = await self._get_submissions(week_start_date)
+
+        if not submissions:
+            return
+
+        runners = await self._get_runners()
+        missing_runners = set(runners) ^ set(submissions)
+
+        if not missing_runners:
+            return
+
+        deadline = (datetime.now(EASTERN_TZ) + timedelta(days=1)).replace(hour=21, minute=0, second=0)
+        timestamp = int(deadline.timestamp())
+
+        missing_members = [
+           discord.utils.find(lambda m, r=runner: m.display_name == r, self.bot.get_guild(ORI_GUID_ID).members).mention
+           for runner in sorted(missing_runners)
+        ]
+
+        reminder =   "## Reminder of the week\n\n"
+        reminder += f"Remaining players: {', '.join(missing_members)}\n"
+        reminder += f"### You have time to submit until <t:{timestamp}:f>"
+
+        await self.bot.get_channel(ORI_RANDO_LEAGUE_CHANNEL_ID).send(reminder)
+
+    @tasks.loop(time=time(hour=21, minute=0, second=0, tzinfo=EASTERN_TZ))
     async def _week_refresh(self):
         """Weekly task that auto DNF runners that haven't submitted in time"""
 
@@ -147,18 +195,19 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         if not date.weekday() == 4:
             return
 
-        week_start_date = get_week_start_date(date - timedelta(hours=1))
-        submissions = await self._get_submissions(week_start_date)
-
-        # DNF runners only if there is at least one submission. If there is no submission, it means the season is over.
-        if submissions:
-            runners = await self._get_runners()
-            missing_runners = set(runners) ^ set(submissions)
-            missing_submissions = [[week_start_date, "n/a", runner, "DNF", "n/a"] for runner in missing_runners]
-            await self._submit(*missing_submissions)
-            logger.info("Submitting missing submissions for week %s: %s", week_start_date, missing_submissions)
-
         await self._refresh_cached_data()
+
+        week_start_date = get_week_start_date(date - timedelta(hours=1))
+
+        submissions = await self._get_submissions(week_start_date)
+        if not submissions:
+            return
+
+        runners = await self._get_runners()
+        missing_runners = set(runners) ^ set(submissions)
+        missing_submissions = [[week_start_date, "n/a", runner, "DNF", "n/a"] for runner in missing_runners]
+        await self._submit(*missing_submissions)
+        logger.info("Submitting missing submissions for week %s: %s", week_start_date, missing_submissions)
 
     async def _refresh_cached_data(self):
         """Refresh all the cached data:
@@ -169,6 +218,7 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         logger.info("Cached seed data refreshed: %s", self._seed_data['seed_header'])
         self._active_season_number = await self._get_active_season_number()
         logger.info("Cached active season number refreshed: %s", self._active_season_number)
+        self.ready.set()
 
     async def _get_spreadsheet(self):
         """Retrieve the Rando League spreadsheet
