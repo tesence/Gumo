@@ -144,6 +144,7 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
             return await interaction.response.send_message("You don't have the permissions to use this command",
                                                            ephemeral=True)
 
+    # @tasks.loop(hours=1)
     @tasks.loop(time=time(hour=21, minute=0, second=0, tzinfo=EASTERN_TZ))
     async def _reminder(self):
         """Remind players who haven't submitted 24h before the end of the week
@@ -175,18 +176,19 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         deadline = (datetime.now(EASTERN_TZ) + timedelta(days=1)).replace(hour=21, minute=0, second=0)
         timestamp = int(deadline.timestamp())
 
-        missing_members = [
-           discord.utils.get(self.bot.get_guild(ORI_GUID_ID).members, display_name=runner).mention
-           for runner in sorted(missing_runners, key=lambda r:r.lower())
-        ]
+        missing_members = []
+        for runner in sorted(missing_runners):
+            member = self.bot.get_guild(ORI_GUID_ID).get_member_named(runner)
+            if member:
+                missing_members.append(member.mention)
+            else:
+                logger.warning("Cannot retrieve member for username '%s'", runner)
 
         reminder =   "## Reminder of the week\n\n"
         reminder += f"Remaining players: {', '.join(missing_members)}\n"
         reminder += f"### You have time to submit until <t:{timestamp}:f>"
 
-        # app_info = await self.bot.application_info()
-        # await app_info.owner.send(reminder)
-
+        # await (await self.bot.application_info()).owner.send(reminder)
         await self.bot.get_channel(ORI_RANDO_LEAGUE_CHANNEL_ID).send(reminder)
 
     @tasks.loop(time=time(hour=21, minute=0, second=0, tzinfo=EASTERN_TZ))
@@ -259,7 +261,7 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         Returns:
             list: Rando League runners.
         """
-        worksheet = await self._get_worksheet(f"S{self._active_season_number} Scores")
+        worksheet = await self._get_worksheet("Names")
         part = functools.partial(worksheet.col_values, 1)
         return (await self.bot.loop.run_in_executor(None, part))[2:]
 
@@ -394,10 +396,10 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         date = datetime.now(EASTERN_TZ).strftime("%Y-%m-%d %H:%M:%S")
         week_start_date = get_current_week_start_date()
         timer = "DNF" if timer == "DNF" else "{:02}:{:02}:{:02}.{:03}".format(*timer)
-        if interaction.user.display_name in await self._get_submissions(week_start_date):
+        if interaction.user.name in await self._get_submissions(week_start_date):
             return await interaction.followup.send(content='You already have submitted this week!')
 
-        await self._submit([week_start_date, date, interaction.user.display_name, timer, vod])
+        await self._submit([week_start_date, date, interaction.user.name, timer, vod])
 
         message = f"Submission successful! You can view this week's spoiler [here]({self._seed_data['spoiler_url']})"
         await interaction.followup.send(content=message)
