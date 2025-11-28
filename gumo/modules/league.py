@@ -191,6 +191,21 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         # await (await self.bot.application_info()).owner.send(reminder)
         await self.bot.get_channel(ORI_RANDO_LEAGUE_CHANNEL_ID).send(reminder)
 
+    @_reminder.error
+    async def _reminder_error(self, error):
+        """Reminder error handler
+
+        Args:
+            error (Exception): Exception raised by the reminder method
+        """
+        logger.exception("Reminder task failed:", exc_info=error)
+        await asyncio.sleep(120)
+
+        try:
+            await self._reminder()
+        except Exception as e:
+            logger.exception("Retry also failed:", exc_info=e)
+
     @tasks.loop(time=time(hour=21, minute=0, second=0, tzinfo=EASTERN_TZ))
     async def _week_refresh(self):
         """Weekly task that auto DNF runners that haven't submitted in time"""
@@ -213,6 +228,21 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         missing_submissions = [[week_start_date, "n/a", runner, "DNF", "n/a"] for runner in missing_runners]
         await self._submit(*missing_submissions)
         logger.info("Submitting missing submissions for week %s: %s", week_start_date, missing_submissions)
+
+    @_week_refresh.error
+    async def _week_refresh_error(self, error):
+        """Week refresh error handler
+
+        Args:
+            error (Exception): Exception raised by the week refresh method
+        """
+        logger.exception("Week refresh task failed:", exc_info=error)
+        await asyncio.sleep(120)
+
+        try:
+            await self._week_refresh()
+        except Exception as e:
+            logger.exception("Retry also failed:", exc_info=e)
 
     async def _refresh_cached_data(self):
         """Refresh all the cached data:
