@@ -113,6 +113,25 @@ async def _wrap_query(method, query, *params):
     logger.debug("%s [%s]", query, ", ".join(list(map(str, params))))
     return await method(query, *params)
 
+async def should_extend_week(date):
+    """Whether the week should be extended
+
+    If the seed number of the next week is forced to be equal to the computed seed number of the current
+    week
+
+    Args:
+        date (datetime): date of the current week
+
+    Returns:
+        bool: True if week should be extended, False otherwise
+    """
+    current_week_start_date = get_week_start_date(date)
+    next_week_start_date = get_week_start_date(date + timedelta(days=7))
+    async with asqlite.connect(DB_FILE) as connection:
+        query = "SELECT value FROM league_settings WHERE date = ? AND name = 'seed_name';"
+        row = await _wrap_query(connection.fetchone, query, next_week_start_date)
+        current_seed_name = str(random.Random(current_week_start_date).randint(1, 10**9))
+        return row is not None and row[0] == current_seed_name
 
 class RandomizerLeague(commands.Cog, name="Randomizer League"):
     """Custom Cog"""
@@ -147,25 +166,21 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
     # @tasks.loop(hours=1)
     @tasks.loop(time=time(hour=21, minute=0, second=0, tzinfo=EASTERN_TZ))
     async def _reminder(self):
-        """Remind players who haven't submitted 24h before the end of the week
-
-        Args:
-            week_start_date (datetime): Date of the start of the week
-            submissions (list): List of submissions for the given week
-        """
-
+        """Remind players who haven't submitted 24h before the end of the week"""
         date = datetime.now(EASTERN_TZ)
 
         if not date.weekday() == 3:
             return
 
+        if await should_extend_week(date):
+            return
+
         week_start_date = get_week_start_date(date)
-
-        await self.ready.wait()
         submissions = await self._get_submissions(week_start_date)
-
         if not submissions:
             return
+
+        await self.ready.wait()
 
         runners = await self._get_runners()
         missing_runners = set(runners) ^ set(submissions)
@@ -203,19 +218,22 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
 
         try:
             await self._reminder()
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.exception("Retry also failed:", exc_info=e)
 
+    # @tasks.loop(hours=1)
     @tasks.loop(time=time(hour=21, minute=0, second=0, tzinfo=EASTERN_TZ))
     async def _week_refresh(self):
         """Weekly task that auto DNF runners that haven't submitted in time"""
-
         date = datetime.now(EASTERN_TZ)
 
         if not date.weekday() == 4:
             return
 
         await self._refresh_cached_data()
+
+        if await should_extend_week(date - timedelta(hours=1)):
+            return
 
         week_start_date = get_week_start_date(date - timedelta(hours=1))
 
@@ -241,7 +259,7 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
 
         try:
             await self._week_refresh()
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.exception("Retry also failed:", exc_info=e)
 
     async def _refresh_cached_data(self):
@@ -323,9 +341,11 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
     @league.command(name='set')
     @models.add_seed_options
     @app_commands.describe(date="The settings of the week to be set")
+    @app_commands.describe(seed_name="A string to be used as seed")
     @app_commands.check(is_league_admin_check)
     # pylint: disable=unused-argument
     async def league_set(self, interaction: discord.Interaction,
+                         seed_name: Optional[str] = None,
                          logic_mode: Optional[app_commands.Choice[str]] = None,
                          key_mode: Optional[app_commands.Choice[str]] = None,
                          goal_mode: Optional[app_commands.Choice[str]] = None,
@@ -340,8 +360,8 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         Set league settings for a given week
 
         Args:
-        Args:
             interaction (discord.Interaction): discord interaction object
+            seed_name (str, optional): Seed name. Defaults to None.
             logic_mode (app_commands.Choice[str], optional): Randomizer logic mode. Defaults to None.
             key_mode (app_commands.Choice[str], optional): Randomizer key mode. Defaults to None.
             goal_mode (app_commands.Choice[str], optional): Randomizer goal mode. Defaults to None.
@@ -456,14 +476,12 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
             dict: seed data
         """
         week_start_date = get_current_week_start_date()
-        random.seed(week_start_date)
-        seed_name = str(random.randint(1, 10**9))
-        random.seed(None)
         async with asqlite.connect(DB_FILE) as connection:
             query = "SELECT * FROM league_settings WHERE date = ?;"
             seed_settings = await _wrap_query(connection.fetchall, query, week_start_date)
             variations = (s['value'] for s in seed_settings if s['name'].startswith('variation'))
             seed_settings = {s['name']: s['value'] for s in seed_settings if not s['name'].startswith('variation')}
+            seed_name = seed_settings.pop('seed_name', None) or str(random.Random(week_start_date).randint(1, 10**9))
             return await self.api_client.get_seed(seed_name=seed_name, **seed_settings, variations=variations)
 
     @league_seed.error
