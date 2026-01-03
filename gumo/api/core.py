@@ -34,10 +34,9 @@ class BFRandomizerApiClient:
         self._session = aiohttp.ClientSession(*args, **kwargs, raise_for_status=True)
 
     async def _get_seed_data(self, seed_name: str = None, logic_mode: str = None, key_mode: str = None,
-                       goal_mode: str = None, spawn: str = None, variations: tuple = (), item_pool: str = None,
-                       relic_count: int = None):
-        """
-        Request a seed data to the Blind Forest Randomizer API
+                                   goal_mode: str = None, spawn: str = None, variations: tuple = (),
+                                   item_pool: str = None, relic_count: int = None, tracking: bool = True):
+        """Request a seed data to the Blind Forest Randomizer API.
 
         Args:
             seed_name (str, optional): Seed name. Defaults to None.
@@ -48,6 +47,7 @@ class BFRandomizerApiClient:
             variations (tuple, optional): Randomizer variations. Defaults to ().
             item_pool (str, optional): Randomizer item pool. Defaults to None.
             relic_count (int, optional): Randomizer relic count (World Tour only). Defaults to None.
+            tracking (bool, optional): Enable map tracking. Defaults to True.
 
         Returns:
             dict: The API response content
@@ -90,6 +90,9 @@ class BFRandomizerApiClient:
         elif logic_mode == "Glitched":
             params.add(("path_diff", models.PATH_DIFFICULTIES['Hard']))
 
+        if not tracking:
+            params.add(("tracking", "Disabled"))
+
         url = f"{SEEDGEN_API_URL}/generator/json?{parse.urlencode(list(params))}"
         logger.info("Outgoing request: %s", url)
         resp = await self._session.request('GET', url)
@@ -97,8 +100,8 @@ class BFRandomizerApiClient:
 
     async def get_seed(self, seed_name: str = None, logic_mode: str = None, key_mode: str = None,
                              goal_mode: str = None, spawn: str = None, variations: tuple = (),
-                             item_pool: str = None, relic_count: int = None):
-        """Returns the seed data splitted into different dictionnary keys
+                             item_pool: str = None, relic_count: int = None, tracking: bool = True):
+        """Returns the seed data splitted into different dictionnary keys.
 
         Args:
             seed_name (str, optional): Seed name. Defaults to None.
@@ -109,17 +112,18 @@ class BFRandomizerApiClient:
             variations (tuple, optional): Randomizer variations. Defaults to ().
             item_pool (str, optional): Randomizer item pool. Defaults to None.
             relic_count (int, optional): Randomizer relic count (World Tour only). Defaults to None.
+            tracking (bool, optional): Enable map tracking. Defaults to True.
 
         Returns:
             dict: The seed data in a dictonary format
         """
         seed_data = await self._get_seed_data(seed_name=seed_name, logic_mode=logic_mode, key_mode=key_mode,
                                               goal_mode=goal_mode, spawn=spawn, variations=variations,
-                                              item_pool=item_pool, relic_count=relic_count)
+                                              item_pool=item_pool, relic_count=relic_count, tracking=tracking)
         return {
             'seed_header': seed_data['players'][0]['seed'].split("\n")[0],
             'spoiler_url': f"{SEEDGEN_API_URL}{seed_data['players'][0]['spoiler_url']}",
-            'map_url': f"{SEEDGEN_API_URL}{seed_data['map_url']}",
-            'history_url': f"{SEEDGEN_API_URL}{seed_data['history_url']}",
+            'map_url': f"{SEEDGEN_API_URL}{seed_data['map_url']}" if "map_url" in seed_data else None,
+            'history_url': f"{SEEDGEN_API_URL}{seed_data['history_url']}" if "history_url" in seed_data else None,
             'seed_file_content': seed_data['players'][0]['seed']
         }

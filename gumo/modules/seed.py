@@ -123,10 +123,12 @@ class BFRandomizer(commands.Cog, name="Blind Forest Randomizer"):
                                                    item_pool=item_pool, relic_count=relic_count)
         seed_buffer = io.BytesIO(bytes(seed_data['seed_file_content'], encoding="utf8"))
         seed_file = discord.File(seed_buffer, filename='randomizer.dat')
-        message = f"`{seed_data['seed_header']}`\n" \
-                  f"**Spoiler**: [link]({seed_data['spoiler_url']})\n" \
-                  f"**Map**: [link]({seed_data['map_url']})\n" \
-                  f"**History**: [link]({seed_data['history_url']})"
+        message = f"`{seed_data['seed_header']}`" \
+                  f"\n**Spoiler**: [link]({seed_data['spoiler_url']})"
+        if seed_data['map_url']:
+            message += f"\n**Map**: [link]({seed_data['map_url']})"
+        if seed_data['history_url']:
+            message += f"\n**History**: [link]({seed_data['history_url']})"
         return message, seed_file
 
     @seed.error

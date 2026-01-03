@@ -10,7 +10,6 @@ Provide Ori and the Blind Forest rando league commands
 import asyncio
 import logging
 from datetime import datetime, time, timedelta
-import functools
 import io
 import os
 import random
@@ -24,8 +23,6 @@ from discord.ext import commands, tasks
 
 import asqlite
 from dateutil import parser
-import gspread
-from google.oauth2 import service_account
 
 from gumo import api
 from gumo.api import models
@@ -68,7 +65,7 @@ class DateTransformer(app_commands.Transformer):
         return parser.parse(value).replace(hour=21, minute=0, second=0)
 
 async def is_league_admin_check(interaction: discord.Interaction):
-    """Rando league administrator checks
+    """Rando league administrator checks.
 
     Args:
         interaction (discord.Interaction): discord interaction object
@@ -83,25 +80,25 @@ async def is_league_admin_check(interaction: discord.Interaction):
     return allowed
 
 def get_current_week_start_date():
-    """Return the date when the current league week started (previous friday)
+    """Return the date when the current league week started (previous friday).
 
     Returns:
-        date: Friday of the current week
+        date: Friday of the current week in YYYY-MM-DD format
     """
     return get_week_start_date(datetime.now(EASTERN_TZ))
 
 def get_week_start_date(date):
-    """Return the date when the given league week started (previous friday)
+    """Return the date when the given league week started (previous friday).
 
     Returns:
-        date: Friday of the current week
+        date: Friday given date's week in YYYY-MM-DD format
     """
     date = date - timedelta(hours=21)
     last_friday = date - timedelta(days=(date.weekday() - 4 + 7) % 7)
     return last_friday.strftime('%Y-%m-%d')
 
 async def _wrap_query(method, query, *params):
-    """Wrap database query execution to log
+    """Wrap database query execution to log.
 
     Args:
         method (function): The connection method to execute
@@ -129,9 +126,14 @@ async def should_extend_week(date):
     next_week_start_date = get_week_start_date(date + timedelta(days=7))
     async with asqlite.connect(DB_FILE) as connection:
         query = "SELECT value FROM league_settings WHERE date = ? AND name = 'seed_name';"
+        row = await _wrap_query(connection.fetchone, query, current_week_start_date)
+        current_seed_name = row[0] if row is not None \
+                            else str(random.Random(current_week_start_date).randint(1, 10**9))
         row = await _wrap_query(connection.fetchone, query, next_week_start_date)
-        current_seed_name = str(random.Random(current_week_start_date).randint(1, 10**9))
-        return row is not None and row[0] == current_seed_name
+        next_seed_name = row[0] if row is not None else None
+        logger.debug("Comparing current and next seed name to tell if the week should be extended (%s == %s)",
+                     current_seed_name, next_seed_name)
+        return next_seed_name == current_seed_name
 
 class RandomizerLeague(commands.Cog, name="Randomizer League"):
     """Custom Cog"""
@@ -139,23 +141,17 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
     def __init__(self, bot):
         self.bot = bot
         self.api_client = api.BFRandomizerApiClient()
+        self.spreadsheet_manager = api.SpreadsheetManager(self.bot.loop)
         self._seed_data = None
-        self._active_season_number = None
-
-        self.credentials = service_account.Credentials.from_service_account_file(
-            os.getenv("GUMO_BOT_GOOGLE_API_SA_FILE"),
-            scopes = [
-                "https://spreadsheets.google.com/feeds",
-                "https://www.googleapis.com/auth/spreadsheets",
-                "https://www.googleapis.com/auth/drive",
-            ]
-        )
         self.ready = asyncio.Event()
         self._week_refresh.start()  # pylint: disable=no-member
         self._reminder.start()  # pylint: disable=no-member
 
     async def cog_load(self):
+        await self.spreadsheet_manager.init()
         await self._refresh_cached_data()
+        self.ready.set()
+        logger.debug('Cog initialized')
 
     async def cog_app_command_error(self, interaction: discord.Interaction,
                                     error: app_commands.errors.AppCommandError):
@@ -163,33 +159,38 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
             return await interaction.response.send_message("You don't have the permissions to use this command",
                                                            ephemeral=True)
 
-    # @tasks.loop(hours=1)
-    @tasks.loop(time=time(hour=21, minute=0, second=0, tzinfo=EASTERN_TZ))
-    async def _reminder(self):
-        """Remind players who haven't submitted 24h before the end of the week"""
-        date = datetime.now(EASTERN_TZ)
+    async def _task_error_handler(self, task, error):
+        """Generic error handler for repeating tasks.
 
-        if not date.weekday() == 3:
-            return
+        Args:
+            task (coroutine function): The task that raised the error.
+            error (Exception): Exception raised by the task.
+        """
+        logger.exception("Task '%s' failed:", task.__name__, exc_info=error)
+        await asyncio.sleep(120)
 
-        if await should_extend_week(date):
-            return
+        try:
+            await task()
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.exception("Retry of task '%s' also failed:", task.__name__, exc_info=e)
 
+    async def _get_reminder(self, date):
+        """Build a reminder text, mentioning runners who have not submitted yet, if there is any.
+
+        Args:
+            date (str): Friday of the given date's week in YYYY-MM-DD format
+
+        Returns:
+            str: A formatted list of mentions for each runners who have not submitted yet, if there is any. None
+            otherwise
+        """
         week_start_date = get_week_start_date(date)
-        submissions = await self._get_submissions(week_start_date)
-        if not submissions:
-            return
-
-        await self.ready.wait()
-
-        runners = await self._get_runners()
-        missing_runners = set(runners) ^ set(submissions)
-
-        if not missing_runners:
-            return
-
         deadline = (datetime.now(EASTERN_TZ) + timedelta(days=1)).replace(hour=21, minute=0, second=0)
         timestamp = int(deadline.timestamp())
+
+        missing_runners = await self.spreadsheet_manager.get_missing_runners(week_start_date)
+        if not missing_runners:
+            return
 
         missing_members = []
         for runner in sorted(missing_runners):
@@ -202,29 +203,38 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         reminder =   "## Reminder of the week\n\n"
         reminder += f"Remaining players: {', '.join(missing_members)}\n"
         reminder += f"### You have time to submit until <t:{timestamp}:f>"
+        return reminder
+
+    # @tasks.loop(hours=1)
+    @tasks.loop(time=time(hour=21, minute=0, second=0, tzinfo=EASTERN_TZ))
+    async def _reminder(self):
+        """Remind players who haven't submitted 24h before the end of the week."""
+        logger.debug('Reminder task triggered')
+        date = datetime.now(EASTERN_TZ)
+
+        if not date.weekday() == 3:
+            return
+
+        if await should_extend_week(date):
+            return
+
+        await self.ready.wait()
+
+        reminder = self._get_reminder(get_week_start_date(date))
+        if not reminder:
+            return
 
         # await (await self.bot.application_info()).owner.send(reminder)
         await self.bot.get_channel(ORI_RANDO_LEAGUE_CHANNEL_ID).send(reminder)
 
     @_reminder.error
     async def _reminder_error(self, error):
-        """Reminder error handler
-
-        Args:
-            error (Exception): Exception raised by the reminder method
-        """
-        logger.exception("Reminder task failed:", exc_info=error)
-        await asyncio.sleep(120)
-
-        try:
-            await self._reminder()
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.exception("Retry also failed:", exc_info=e)
+        await self._task_error_handler(self._reminder, error)
 
     # @tasks.loop(hours=1)
     @tasks.loop(time=time(hour=21, minute=0, second=0, tzinfo=EASTERN_TZ))
     async def _week_refresh(self):
-        """Weekly task that auto DNF runners that haven't submitted in time"""
+        """Weekly task that auto DNF runners that haven't submitted in time."""
         date = datetime.now(EASTERN_TZ)
 
         if not date.weekday() == 4:
@@ -235,32 +245,12 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         if await should_extend_week(date - timedelta(hours=1)):
             return
 
-        week_start_date = get_week_start_date(date - timedelta(hours=1))
-
-        submissions = await self._get_submissions(week_start_date)
-        if not submissions:
-            return
-
-        runners = await self._get_runners()
-        missing_runners = set(runners) ^ set(submissions)
-        missing_submissions = [[week_start_date, "n/a", runner, "DNF", "n/a"] for runner in missing_runners]
-        await self._submit(*missing_submissions)
-        logger.info("Submitting missing submissions for week %s: %s", week_start_date, missing_submissions)
+        await self.ready.wait()
+        await self.spreadsheet_manager.auto_dnf(get_week_start_date(date - timedelta(hours=1)))
 
     @_week_refresh.error
     async def _week_refresh_error(self, error):
-        """Week refresh error handler
-
-        Args:
-            error (Exception): Exception raised by the week refresh method
-        """
-        logger.exception("Week refresh task failed:", exc_info=error)
-        await asyncio.sleep(120)
-
-        try:
-            await self._week_refresh()
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.exception("Retry also failed:", exc_info=e)
+        await self._task_error_handler(self._week_refresh, error)
 
     async def _refresh_cached_data(self):
         """Refresh all the cached data:
@@ -269,72 +259,8 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         """
         self._seed_data = await self._league_seed()
         logger.info("Cached seed data refreshed: %s", self._seed_data['seed_header'])
-        self._active_season_number = await self._get_active_season_number()
-        logger.info("Cached active season number refreshed: %s", self._active_season_number)
-        self.ready.set()
-
-    async def _get_spreadsheet(self):
-        """Retrieve the Rando League spreadsheet
-
-        Returns:
-            gspread.Spreadsheet: Rando League spreadsheet.
-        """
-        part = functools.partial(gspread.authorize, self.credentials)
-        client = await self.bot.loop.run_in_executor(None, part)
-        part = functools.partial(client.open, title="Ori Rando League Leaderboard")
-        return await self.bot.loop.run_in_executor(None, part)
-
-    async def _get_worksheet(self, name: str):
-        """Retrieve a Rando League worksheet
-
-        Returns:
-            gspread.Worksheet: Rando League worksheet.
-        """
-        spreadsheet = await self._get_spreadsheet()
-        part = functools.partial(spreadsheet.worksheet, name)
-        return await self.bot.loop.run_in_executor(None, part)
-
-    async def _get_active_season_number(self):
-        """Retrieve the active season number
-
-        Returns:
-            int: active season number
-        """
-        worksheets = (await self._get_spreadsheet()).worksheets()
-        return int(worksheets[0].title[1])
-
-    async def _get_runners(self):
-        """Retrieve Rando League runners
-
-        Returns:
-            list: Rando League runners.
-        """
-        worksheet = await self._get_worksheet("Names")
-        part = functools.partial(worksheet.col_values, 1)
-        return (await self.bot.loop.run_in_executor(None, part))[2:]
-
-    async def _get_submissions(self, date: datetime):
-        """Retrieve Rando League submissions
-
-        Args:
-            date (date): The settings of the week to be wiped. Defaults to None.
-
-        Returns:
-            list: List of submissions
-        """
-        worksheet = await self._get_worksheet(f"S{self._active_season_number} Raw Data")
-        records = await self.bot.loop.run_in_executor(None, worksheet.get_all_records)
-        return [r['Runner'] for r in records if r['Week'] == date]
-
-    async def _submit(self, *submissions):
-        """Sumbit a list of Rando League submissions
-
-        Args:
-            submissions (list): List of Rando League submissions to submit.
-        """
-        worksheet = await self._get_worksheet(f"S{self._active_season_number} Raw Data")
-        part = functools.partial(worksheet.append_rows, submissions, value_input_option="USER_ENTERED")
-        await self.bot.loop.run_in_executor(None, part)
+        await self.spreadsheet_manager.refresh_active_season_number()
+        logger.info("Cached active season number refreshed: %s", self.spreadsheet_manager.active_season_number)
 
     league = app_commands.Group(name="league", description="BF Rando League commands")
 
@@ -380,9 +306,9 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
                     "ON CONFLICT(date, name) DO UPDATE SET value = excluded.value " \
                     "ON CONFLICT(date, value) DO NOTHING;"
             await _wrap_query(connection.executemany, query, settings)
-            message = f"League settings for week {week_start_date} have successfully been updated!"
-            await interaction.response.send_message(content=message, ephemeral=True)
-
+            await interaction.response.send_message(content=f"League settings for week {week_start_date} have "
+                                                            f"successfully been updated!",
+                                                            ephemeral=True)
         if week_start_date == get_current_week_start_date():
             await self._refresh_cached_data()
 
@@ -391,7 +317,7 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
     @app_commands.check(is_league_admin_check)
     async def league_view(self, interaction: discord.Interaction,
                           date: app_commands.Transform[datetime, DateTransformer] = None):
-        """View rando league settings
+        """View rando league settings.
 
         Args:
             interaction (discord.Interaction): discord interaction object
@@ -413,7 +339,7 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
     @app_commands.check(is_league_admin_check)
     async def league_clear(self, interaction: discord.Interaction,
                            date: app_commands.Transform[datetime, DateTransformer] = None):
-        """Clear rando league settings
+        """Clear rando league settings.
 
         Args:
             interaction (discord.Interaction): discord interaction object
@@ -434,7 +360,7 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
     @app_commands.describe(vod="The link to the VOD")
     async def league_submit(self, interaction: discord.Interaction,
                             timer: app_commands.Transform[str, TimeFormatTransformer], vod: str):
-        """Submit rando league result
+        """Submit rando league result.
 
         Args:
             interaction (discord.Interaction): discord interaction object
@@ -443,22 +369,22 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         """
         await interaction.response.defer(ephemeral=True)
 
-        date = datetime.now(EASTERN_TZ).strftime("%Y-%m-%d %H:%M:%S")
-        week_start_date = get_current_week_start_date()
+        date = datetime.now(EASTERN_TZ)
+        week_start_date = get_week_start_date(date)
         timer = "DNF" if timer == "DNF" else "{:02}:{:02}:{:02}.{:03}".format(*timer)
-        if interaction.user.name in await self._get_submissions(week_start_date):
+
+        submissions = await self.spreadsheet_manager.get_submissions(week_start_date)
+        if interaction.user.name in [submission['Runner'] for submission in submissions]:
             return await interaction.followup.send(content='You already have submitted this week!')
 
-        await self._submit([week_start_date, date, interaction.user.name, timer, vod])
-
-        message = f"Submission successful! You can view this week's spoiler [here]({self._seed_data['spoiler_url']})"
-        await interaction.followup.send(content=message)
+        await self.spreadsheet_manager.submit([week_start_date, date.strftime("%Y-%m-%d %H:%M:%S"),
+                                               interaction.user.name, timer, vod])
+        await interaction.followup.send(content=f"Submission successful! You can view this week's spoiler [here]"
+                                                f"({self._seed_data['spoiler_url']})")
 
     @league.command(name='seed')
     async def league_seed(self, interaction: discord.Interaction):
-        """
-        Generate an Ori and the Blind Forest Randomizer seed.
-        The seed name and option are set to be compliant with the Rando League rules by default.
+        """Return the current ori rando league seed.
 
         Args:
             interaction (discord.Interaction): discord interaction object
@@ -469,8 +395,7 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         return await interaction.followup.send(content=f"`{self._seed_data['seed_header']}`", files=[seed_file])
 
     async def _league_seed(self):
-        """
-        Generate the current week seed name and params and returns the corresponding seed data.
+        """Generate the current week seed name and params and returns the corresponding seed data.
 
         Returns:
             dict: seed data
@@ -482,7 +407,8 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
             variations = (s['value'] for s in seed_settings if s['name'].startswith('variation'))
             seed_settings = {s['name']: s['value'] for s in seed_settings if not s['name'].startswith('variation')}
             seed_name = seed_settings.pop('seed_name', None) or str(random.Random(week_start_date).randint(1, 10**9))
-            return await self.api_client.get_seed(seed_name=seed_name, **seed_settings, variations=variations)
+            return await self.api_client.get_seed(seed_name=seed_name, **seed_settings, variations=variations,
+                                                  tracking=False)
 
     @league_seed.error
     async def seed_error(self, interaction: discord.Interaction, error: app_commands.errors.AppCommandError):
@@ -492,7 +418,7 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
             interaction (discord.Interaction): discord interaction object
             error (app_commands.errors.AppCommandError): error raised
         """
-        message = "An occured while generating the seed"
+        message = "An occured while retrieving the seed"
         logger.error(message, exc_info=error)
         return await interaction.followup.send(message)
 
@@ -506,7 +432,9 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         """
         if isinstance(error, BadTimeArgumentFormat):
             return await interaction.response.send_message("Invalid time format", ephemeral=True)
-        logger.error("An occured during the submission process", exc_info=error)
+        message = "An occured during the submission process, please try again"
+        logger.error(message, exc_info=error)
+        return await interaction.response.send_message(message, ephemeral=True)
 
 
 # pylint: disable=missing-function-docstring
