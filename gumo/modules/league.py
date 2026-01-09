@@ -220,7 +220,7 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
 
         await self.ready.wait()
 
-        reminder = self._get_reminder(get_week_start_date(date))
+        reminder = await self._get_reminder(get_week_start_date(date))
         if not reminder:
             return
 
