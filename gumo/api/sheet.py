@@ -60,7 +60,7 @@ class SpreadsheetManager:
         Returns:
             list: Rando League runners
         """
-        worksheet = await self._run_async(self._spreadsheet.worksheet, "Names")
+        worksheet = await self._run_async(self._spreadsheet.worksheet, f"S{self.active_season_number} Names")
         first_column = await self._run_async(worksheet.col_values, 1)
         return first_column[2:]
 
@@ -96,8 +96,10 @@ class SpreadsheetManager:
             missing_runners (list): List of runners who haven't submitted yet
         """
         submissions = await self.get_submissions(week_start_date)
+        if not submissions:
+            return []
         runners = await self.get_runners()
-        missing_runners = set(runners) ^ set(submission['Runner'] for submission in submissions)
+        missing_runners = list(set(runners) ^ set(submission['Runner'] for submission in submissions))
         logger.info("Runners who have not submitted yet for week %s: %s", week_start_date, missing_runners)
         return missing_runners
 
