@@ -52,7 +52,7 @@ class SpreadsheetManager:
         Uses the first tab in the list as reference
         """
         worksheets = await self._run_async(self._spreadsheet.worksheets)
-        self.active_season_number = int(worksheets[0].title[1])
+        self.active_season_number = int(worksheets[0].title.split()[0][1:])
 
     async def get_runners(self):
         """Retrieve Rando League runners.
