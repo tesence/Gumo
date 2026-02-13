@@ -235,6 +235,7 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
     @tasks.loop(time=time(hour=21, minute=0, second=0, tzinfo=EASTERN_TZ))
     async def _week_refresh(self):
         """Weekly task that auto DNF runners that haven't submitted in time."""
+        logger.debug('Week refresh task triggered')
         date = datetime.now(EASTERN_TZ)
 
         if not date.weekday() == 4:
