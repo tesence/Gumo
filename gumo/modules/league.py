@@ -159,21 +159,6 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
             return await interaction.response.send_message("You don't have the permissions to use this command",
                                                            ephemeral=True)
 
-    async def _task_error_handler(self, task, error):
-        """Generic error handler for repeating tasks.
-
-        Args:
-            task (coroutine function): The task that raised the error.
-            error (Exception): Exception raised by the task.
-        """
-        logger.exception("Task '%s' failed:", task.__name__, exc_info=error)
-        await asyncio.sleep(120)
-
-        try:
-            await task()
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.exception("Retry of task '%s' also failed:", task.__name__, exc_info=e)
-
     async def _get_reminder(self, date):
         """Build a reminder text, mentioning runners who have not submitted yet, if there is any.
 
@@ -206,7 +191,7 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         return reminder
 
     # @tasks.loop(hours=1)
-    @tasks.loop(time=time(hour=21, minute=0, second=0, tzinfo=EASTERN_TZ))
+    @tasks.loop(time=time(hour=21, minute=0, second=0, tzinfo=EASTERN_TZ), reconnect=True)
     async def _reminder(self):
         """Remind players who haven't submitted 24h before the end of the week."""
         logger.debug('Reminder task triggered')
@@ -220,19 +205,15 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
 
         await self.ready.wait()
 
-        reminder = await self._get_reminder(get_week_start_date(date))
+        reminder = await self._get_reminder(date)
         if not reminder:
             return
 
         # await (await self.bot.application_info()).owner.send(reminder)
         await self.bot.get_channel(ORI_RANDO_LEAGUE_CHANNEL_ID).send(reminder)
 
-    @_reminder.error
-    async def _reminder_error(self, error):
-        await self._task_error_handler(self._reminder, error)
-
     # @tasks.loop(hours=1)
-    @tasks.loop(time=time(hour=21, minute=0, second=0, tzinfo=EASTERN_TZ))
+    @tasks.loop(time=time(hour=21, minute=0, second=0, tzinfo=EASTERN_TZ), reconnect=True)
     async def _week_refresh(self):
         """Weekly task that auto DNF runners that haven't submitted in time."""
         logger.debug('Week refresh task triggered')
@@ -248,10 +229,6 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
 
         await self.ready.wait()
         await self.spreadsheet_manager.auto_dnf(get_week_start_date(date - timedelta(hours=1)))
-
-    @_week_refresh.error
-    async def _week_refresh_error(self, error):
-        await self._task_error_handler(self._week_refresh, error)
 
     async def _refresh_cached_data(self):
         """Refresh all the cached data:
