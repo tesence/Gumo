@@ -396,7 +396,7 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
             interaction (discord.Interaction): discord interaction object
             error (app_commands.errors.AppCommandError): error raised
         """
-        message = "An occured while retrieving the seed"
+        message = "An error occured while retrieving the seed"
         logger.error(message, exc_info=error)
         return await interaction.followup.send(message)
 
@@ -410,7 +410,7 @@ class RandomizerLeague(commands.Cog, name="Randomizer League"):
         """
         if isinstance(error, BadTimeArgumentFormat):
             return await interaction.response.send_message("Invalid time format", ephemeral=True)
-        message = "An occured during the submission process, please try again"
+        message = "An error occured during the submission process, please try again"
         logger.error(message, exc_info=error)
         return await interaction.response.send_message(message, ephemeral=True)
 
