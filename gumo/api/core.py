@@ -22,7 +22,8 @@ PATHS_INHERITENCE['Expert'] = PATHS_INHERITENCE['Standard'] + \
                               [v for k, v in models.LOGIC_PATHS.items() if k.startswith('Expert')] + \
                               [models.LOGIC_PATHS['Dbash']]
 PATHS_INHERITENCE['Master'] = PATHS_INHERITENCE['Expert'] + \
-                              [v for k, v in models.LOGIC_PATHS.items() if k.startswith('Master')]
+                              [v for k, v in models.LOGIC_PATHS.items() if k.startswith('Master')] + \
+                              [models.LOGIC_PATHS['Gjump']]
 PATHS_INHERITENCE['Glitched'] = PATHS_INHERITENCE['Expert'] + \
                                 [models.LOGIC_PATHS['Glitched'], models.LOGIC_PATHS['Timed-Level']]
 
