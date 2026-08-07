@@ -72,6 +72,7 @@ LOGIC_PATHS = {
     'Master-core': "master-core",
     'Master-dboost': "master-dboost",
     'Master-lure': "master-lure",
+    "Master-abilities": "master-abilities",
     'Dbash': "dbash",
     'Gjump': "gjump",
     'Glitched': "glitched",
